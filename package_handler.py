@@ -117,7 +117,7 @@ class PackageHandler:
                         empty_truck_found = True
                         break
                 if not empty_truck_found:
-                    package.truck = fleet[-1]
+                    package.truck = len(fleet.truck_list) - 1
                 #print(f"Package {package.package_id} has a D note: {package.special_note}, and deadline is not EOD: {package.delivery_deadline}")
         
     

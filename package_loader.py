@@ -20,7 +20,10 @@ class PackageLoader:
         for i, group in enumerate(package_groups):
             for package in group[:]:
                 truck_to_load = package.truck
-                if truck_to_load:
+                if (
+                    truck_to_load is not None
+                    and 0 <= truck_to_load < len(fleet.truck_list)
+                ):
                     truck = fleet.truck_list[truck_to_load]
                     self.vprint(f"  -LOADING Package {package.package_id} ONTO Truck {truck.truck_id + 1}", verbosity)
                     truck.package_list.append(package)
