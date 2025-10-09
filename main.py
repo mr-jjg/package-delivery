@@ -10,14 +10,29 @@ from package_loader import PackageLoader
 from delivery_handler import DeliveryHandler
 import threading # https://www.geeksforgeeks.org/multithreading-python-set-1/
 from user_interface import launch_ui
+import argparse
+
+
+parser = argparse.ArgumentParser(description="WGUPS Package Delivery Program")
+parser.add_argument(
+    "-v", "--verbosity",
+    type=int,
+    choices=[0,1],
+    default=0,
+    help="Set verbosity level (0 = quiet, 1 = verbose)"
+)
+args = parser.parse_args()
+VERBOSITY = str(args.verbosity)
+
+print("\nPress Enter to begin...")
+input()
+input()
 
 
 print("\n\n")
 print("-----------------------------------")
 print("           LOADING DATA            ")
 print("-----------------------------------")
-
-VERBOSITY = input("Input verbosity level (0 = quiet, 1 = verbose): ")
 
 # Read package data from packageCSV.csv file and store in the data_repository module for global access
 print("\nReading package data from packageCSV.csv file and storing in the 'warehouse_hash' table...")
@@ -58,7 +73,8 @@ if VERBOSITY == "1":
     fleet.print_fleet()
 
 
-input("\nPress Enter to continue...")
+print("\nPress Enter to continue...")
+input()
 
 
 print("\n\n")
@@ -86,7 +102,8 @@ constraints_list = package_handler.build_constraints_list()
 if VERBOSITY == "1":
     print(f"\n'constraints_list' of length {len(constraints_list)} - all packages with constraints: delivery_deadline, special_note (not including package with wrong address, with special_note 'X')\n")
     print_package_list(constraints_list)
-    input("\nPress Enter to continue...")
+    print("\nPress Enter to continue...")
+    input()
 
 
 # This returns a list grouping packages by priority solely for the purposes of a visual aid. The important thing to note is that the priority attribute of each package in the constraints_list is set based upon the following criteria:
@@ -103,7 +120,8 @@ package_handler.set_package_priorities(constraints_list)
 if VERBOSITY == "1":
     print(f"\nLength {len(constraints_list)} - packages prioritized by delivery_deadline and special note 'D'.\n")
     print_package_list(constraints_list)
-    input("\nPress Enter to continue...")
+    print("\nPress Enter to continue...")
+    input()
 
 
 # Handle special_note: 'Can only be on truck n' ('T' notes)
@@ -112,7 +130,8 @@ package_handler.handle_with_truck_note(constraints_list)
 if VERBOSITY == "1":
     print(f"\nLength {len(constraints_list)} - all packages with special notes relating to packages that must be delivered with specific trucks: \n")
     print_package_list(constraints_list)
-    input("\nPress Enter to continue...")
+    print("\nPress Enter to continue...")
+    input()
 
 
 # Handle special note: 'Delayed on flight' ('D' notes). The packages without a delivery deadline are considered lowest priority, and are handled by assignment to the last vehicle in the fleet without a driver.
@@ -121,7 +140,8 @@ package_handler.handle_delayed_without_deadline_note(constraints_list, fleet)
 if VERBOSITY == "1":
     print(f"\nLength {len(constraints_list)} - all packages with special notes relating to delayed packages without a delivery deadline.\n")
     print_package_list(constraints_list)
-    input("\nPress Enter to continue...")
+    print("\nPress Enter to continue...")
+    input()
 
 
 # Handle special note: 'Must be delivered with x' ('W' notes). This clever algorithm uses the properties of sets to first build a list of sets before merging all sets that share common values into the smallest group of sets. The idea for handling this special note occured to me when I was boiling water; I watched while the condensation built until eventually the larger droplets bump into the smaller droplets and absorb them until their mass can no longer keep them hanging upside down and finally racing down the slope of the clear glass lid into the oblivion below. I had to work the KruskalsMinimumSpanningTree algorithm out by hand multiple times and augment it to fit my purposes, but I was thrilled enough with the results that I moved the logic for merging sets into a helper function. This algorithm also sets the package.group and the package.priority attributes of each package so they are sure to be loaded onto the same truck.
@@ -130,7 +150,8 @@ constraints_list = package_handler.handle_with_package_note(constraints_list)
 if VERBOSITY == "1":
     print(f"\n'constraints_list' len: {len(constraints_list)} - added packages grouped with packages that have the 'W' constraint, as they have the constraint by association. Set the group attribute of each package as needed.")
     print_package_list(constraints_list)
-    input("\nPress Enter to continue...")
+    print("\nPress Enter to continue...")
+    input()
 
 
 # Handles the remaining packages by building a list of all packages not in constraints_list, setting their priority to 4, and appending to form one list that contains all the packages in the warehouse.
@@ -139,7 +160,8 @@ package_handler.add_and_prioritize_remaining_packages(constraints_list)
 if VERBOSITY == "1":
     print(f"\n'constraints_list' len: {len(constraints_list)} - all of the remaining packages in the warehouse have been prioritized and added to the constraints_list.")
     print_package_list(constraints_list)
-    input("\nPress Enter to continue...")
+    print("\nPress Enter to continue...")
+    input()
 
 
 # Finally, sort based on priority and then by group for easier iteration.
@@ -150,7 +172,8 @@ if VERBOSITY == "1":
     print_group_list(load_ready_list)
 
 
-input("\nPress Enter to continue...")
+print("\nPress Enter to continue...")
+input()
 
 print("\n\n")
 print("-----------------------------------")
@@ -199,7 +222,8 @@ if VERBOSITY == "1":
     fleet.print_fleet()
 
 
-input("\nPress Enter to continue...")
+print("\nPress Enter to continue...")
+input()
 
 print("\n\n")
 print("-----------------------------------")
