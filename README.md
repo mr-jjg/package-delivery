@@ -82,7 +82,11 @@ pip install -r requirements.txt
 python main.py
 ```
 
-You will be prompted for verbosity level:
+You can include an optional **verbosity flag**:
+```bash
+python main.py -v 1
+```
+Verbosity levels:
 - `0` = quiet (minimal output)
 - `1` = verbose (detailed logs of each step)
 
