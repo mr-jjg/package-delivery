@@ -23,7 +23,7 @@ class Package:
         self.city = city
         self.state = state
         self.zip_code = zip_code
-        self.delivery_deadline = self.parse_delivery_deadline(delivery_deadline) if isinstance(delivery_deadline, str) else delivery_deadline
+        self.delivery_deadline = parse_delivery_deadline(delivery_deadline) if isinstance(delivery_deadline, str) else delivery_deadline
         self.weight_kilo = weight_kilo
         self.special_note = special_note
         self.delivery_status = delivery_status
@@ -70,17 +70,7 @@ class Package:
         return self.package_id < other.package_id
         
     
-    def parse_delivery_deadline(self, deadline_str):
-        #print(f"{deadline_str} is a {type(deadline_str)}")
-        if deadline_str is None or deadline_str == '' or deadline_str == 'None':
-            return None
-        elif deadline_str == 'EOD':
-            return time(23, 59)
-        else:
-            datetime_obj = datetime.strptime(deadline_str, "%I:%M %p")
-            time_obj = time(datetime_obj.hour, datetime_obj.minute)
-            #print(f"This is the time object being returned by parse_delivery_deadline: {time_obj}")
-            return time_obj
+    
         
     def parse_delayed_package(self, delayed_str):
         if delayed_str is None or delayed_str == '' or delayed_str == 'None':
@@ -199,4 +189,16 @@ def print_group_list(group_list):
     for i, group in enumerate(group_list):
         print(f"Group {i} | Size {len(group)}")
         print_package_list(group)
+
+def parse_delivery_deadline(deadline_str):
+        #print(f"{deadline_str} is a {type(deadline_str)}")
+        if deadline_str is None or deadline_str == '' or deadline_str == 'None':
+            return None
+        elif deadline_str == 'EOD':
+            return time(23, 59)
+        else:
+            datetime_obj = datetime.strptime(deadline_str, "%I:%M %p")
+            time_obj = time(datetime_obj.hour, datetime_obj.minute)
+            #print(f"This is the time object being returned by parse_delivery_deadline: {time_obj}")
+            return time_obj
 #jjg
