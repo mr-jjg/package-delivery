@@ -46,7 +46,7 @@ class Package:
             special_note_str = 'None'
             
         delivery_deadline_str = self.get_deadline_str()
-        time_of_delivery_str = self.get_time_str(self.time_of_delivery)
+        time_of_delivery_str = get_time_str(self.time_of_delivery)
         
         return (
             f"Package ID: {self.package_id:<5}" # DEBUG ONLY
@@ -70,31 +70,24 @@ class Package:
         return self.package_id < other.package_id
         
     
-    
-        
-    def parse_delayed_package(self, delayed_str):
-        if delayed_str is None or delayed_str == '' or delayed_str == 'None':
-            return None
-        else:
-            datetime_obj = datetime.strptime(delayed_str, "%I:%M %p")
-            time_obj = time(datetime_obj.hour, datetime_obj.minute)
-            return time_obj
-    
     # Helper function that parses and cleans specialnote and returns as cleaned list:
-    def parse_special_note(self):
+    def parse_special_note(self):        
         if self.special_note is None:
             return None
+        
+        if isinstance(self.special_note, list):
+            self.special_note = self.get_special_note_str()
         
         parsed_note = self.special_note.split(",")
         #print(f"parsing {self.special_note} as parsed_note: {parsed_note} ", end='') # DEBUG ONLY
         
-        cleaned_parsed_note = [self.try_casting_to_int(note.strip()) for note in parsed_note]
+        cleaned_parsed_note = [try_casting_to_int(note.strip()) for note in parsed_note]
         #print(f"and cleaning as cleaned_parsed_note: {cleaned_parsed_note}") # DEBUG ONLY
         
         # Per project specifications, there is a package with an incorrect address. The correct address is unknown, but the time of delivery is known and needs to be parsed as a time object. Also, if the special note is 'D' for delayed, parse as a time object
         if cleaned_parsed_note[0] == 'D' or cleaned_parsed_note[0] == 'X':
             #print(f"Passing to parse_delayed_package: {cleaned_parsed_note[1]} type: {type(cleaned_parsed_note[1])}")
-            time_object = self.parse_delayed_package(cleaned_parsed_note[1])
+            time_object = parse_delayed_package(cleaned_parsed_note[1])
             cleaned_parsed_note[1] = time_object
         
         self.special_note = cleaned_parsed_note
@@ -103,6 +96,8 @@ class Package:
     def get_special_note_str(self):
         if not self.special_note:
             return 'None'
+        if isinstance(self.special_note, str):
+            self.parse_special_note()
         return ', '.join(
             note.strftime("%I:%M %p") if isinstance(note, time) else str(note)
             for note in self.special_note
@@ -118,21 +113,6 @@ class Package:
             return self.delivery_deadline.strftime("%I:%M %p")
         else:
             return str(self.delivery_deadline)
-        
-    
-    def get_time_str(self, time_object):
-        if time_object is None:
-            return 'None'
-        else:
-            return time_object.strftime("%I:%M %p")
-        
-    
-    # Helper function that safely casts a value to int
-    def try_casting_to_int(self, value):
-        try:
-            return int(value)
-        except ValueError:
-            return value
         
     
 
@@ -201,4 +181,26 @@ def parse_delivery_deadline(deadline_str):
             time_obj = time(datetime_obj.hour, datetime_obj.minute)
             #print(f"This is the time object being returned by parse_delivery_deadline: {time_obj}")
             return time_obj
+        
+def parse_delayed_package(delayed_str):
+        if delayed_str is None or delayed_str == '' or delayed_str == 'None':
+            return None
+        else:
+            datetime_obj = datetime.strptime(delayed_str, "%I:%M %p")
+            time_obj = time(datetime_obj.hour, datetime_obj.minute)
+            return time_obj
+
+def get_time_str(time_object):
+    if time_object is None:
+        return 'None'
+    else:
+        return time_object.strftime("%I:%M %p")
+        
+    
+# Helper function that safely casts a value to int
+def try_casting_to_int(value):
+    try:
+        return int(value)
+    except ValueError:
+        return value
 #jjg

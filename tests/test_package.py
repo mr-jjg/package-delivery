@@ -98,21 +98,109 @@ def test_parse_delivery_deadline_variants_parametric():
     assert package.parse_delivery_deadline(dl_none) is None
     assert package.parse_delivery_deadline(dl_eod) == time(23, 59)
     
+def test_parse_delayed_package_valid_time_and_none_inputs():
+    assert package.parse_delayed_package("10:30 am") == time(10, 30)
+    assert package.parse_delayed_package("9:05 PM") == time(21, 5)
+    
+    assert package.parse_delayed_package("") is None
+    assert package.parse_delayed_package("None") is None
+    assert package.parse_delayed_package(None) is None
 
-'''
-test_parse_delayed_package_valid_time_and_none_inputs
+def test_parse_special_note_delayed_and_x_and_mixed_casts(make_packages):
+    packages = make_packages()
+    #package.Package(2, "None"),
+    #package.Package(3, "D, 9:05 AM"),
+    #package.Package(4, "X, 10:20 AM, 410 S State St, Salt Lake City, UT, 84111")
+    
+    packages[2].parse_special_note()
+    packages[3].parse_special_note()
+    
+    assert packages[1].parse_special_note() == ['None']
+    assert packages[2].parse_special_note() == ['D', time(9, 5)]
+    assert packages[3].parse_special_note() == ['X', time(10, 20), '410 S State St', 'Salt Lake City', 'UT', 84111]
+    
+def test_get_special_note_str_various_inputs(make_packages):
+    packages = make_packages()
+    #package.Package(1, "T, 2"),
+    #package.Package(2, "None"),
+    #package.Package(3, "D, 9:05 AM"),
+    #package.Package(4, "X, 10:20 AM, 410 S State St, Salt Lake City, UT, 84111"),
+    #package.Package(5, "W, 15, 19")
+    
+    assert packages[0].get_special_note_str() == "T, 2"
+    assert packages[1].get_special_note_str() == "None"
+    assert packages[2].get_special_note_str() == "D, 09:05 AM"
+    assert packages[3].get_special_note_str() == "X, 10:20 AM, 410 S State St, Salt Lake City, UT, 84111"
+    assert packages[4].get_special_note_str() == "W, 15, 19"
 
-test_parse_special_note_delayed_and_x_and_mixed_casts
+def test_get_deadline_str_for_none_eod_and_time(make_packages):
+    packages = make_packages()
+    #package.Package(1, "10:00 AM"),
+    #package.Package(2, ""),
+    #package.Package(3, "EOD"),
+    #package.Package(4, "12:00 PM"),
+    #package.Package(5, "4:00 PM"),
+    
+    assert packages[0].get_deadline_str() == "10:00 AM"
+    assert packages[1].get_deadline_str() == "None"
+    assert packages[2].get_deadline_str() == "EOD"
+    assert packages[3].get_deadline_str() == "12:00 PM"
+    assert packages[4].get_deadline_str() == "04:00 PM"
 
-test_get_special_note_str_various_inputs
+def test_get_time_str_for_none_and_time():    
+    assert package.get_time_str(None) == "None"
+    assert package.get_time_str(time(1, 1)) == "01:01 AM"
+    assert package.get_time_str(time(12, 0)) == "12:00 PM"
+    assert package.get_time_str(time(23, 59)) == "11:59 PM"
 
-test_get_deadline_str_for_none_eod_and_time
+def test_try_casting_to_int_numeric_and_non_numeric():
+    assert package.try_casting_to_int('0') == 0
+    assert package.try_casting_to_int('int') == 'int'
 
-test_get_time_str_for_none_and_time
+def test_print_package_list_captures_expected_columns(capsys):
+    count_columns = lambda line: line.count(" | ") + 1 if " | " in line else 0
 
-test_try_casting_to_int_numeric_and_non_numeric
+    p1 = package.Package(1, "123 Main", "Town", "ST", "00000", "EOD", 1.0, "X, 9:00 AM")
+    p2 = package.Package(2, "456 Broad Ave", "City", "TS", "11111", "10:30 AM", 2.5, None)
+    p2.truck = 0
 
-test_print_package_list_captures_expected_columns
+    package.print_package_list([p1, p2])
+    out = capsys.readouterr().out
+    lines = [ln for ln in out.strip().splitlines() if ln.strip()]
 
-test_print_group_list_shows_group_sizes_and_delegates
-'''
+    header, sep, row1, row2 = lines[0], lines[1], lines[2], lines[3]
+
+    assert "ID | Address" in header
+    assert count_columns(header) == count_columns(row1) == count_columns(row2)
+    assert len(sep) == len(header)
+
+    assert "123 Main" in row1
+    assert "11:59 PM" in row1
+    assert "X" in row1
+
+    assert "456 Broad Ave" in row2
+    assert "10:30 AM" in row2
+    assert "None" in row2
+
+def test_print_group_list_shows_group_sizes_and_delegates(capsys, monkeypatch):
+    calls = []
+    monkeypatch.setattr(package, "print_package_list",
+                        lambda groups: calls.append(groups))
+
+    p1 = package.Package(1, "A", "C1", "S", "00001", "EOD", 1.0, None)
+    p2 = package.Package(2, "B", "C2", "S", "00002", "EOD", 1.0, None)
+    p3 = package.Package(3, "C", "C3", "S", "00003", "EOD", 1.0, None)
+
+    group_list = [[p1, p2], [p3]]
+
+    package.print_group_list(group_list)
+    out = capsys.readouterr().out.strip().splitlines()
+
+    assert any("Sum of all groups: 3" in line for line in out)
+
+    assert any("Group 0 | Size 2" in line for line in out)
+    assert any("Group 1 | Size 1" in line for line in out)
+
+    assert len(calls) == 2
+    assert calls[0] == [p1, p2]
+    assert calls[1] == [p3]
