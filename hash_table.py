@@ -8,6 +8,8 @@
 
 class HashTable:
     def __init__(self, size):
+        if size <= 0:
+            raise ValueError("HashTable size must be positive")
         self.size = size
         self.table = [[] for _ in range(size)]
     
@@ -78,10 +80,6 @@ class HashTable:
             return True
         else:
             return False
-    
-    
-    def iterate(self, key):
-        bucket_index = self.hash(key)
     
     
     def print_hash_table(self):
