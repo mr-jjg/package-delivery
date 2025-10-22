@@ -49,15 +49,10 @@ def test_hash_with_non_integer_key_raises():
     (5, 'obj5'),
 ])
 def test_insert_adds_package_to_correct_bucket(key, obj, sample_table):
-    table, _ = sample_table
-
+    table = hash_table.HashTable(size=5)
     table.insert(key, obj)
-
-    # Compute expected bucket
     expected_index = table.hash(key)
-    bucket_contents = table.table[expected_index]
-
-    assert obj in bucket_contents
+    assert obj in table.table[expected_index]
 
 def test_insert_duplicate_key_does_not_duplicate_object(sample_table):
     table, packages = sample_table
@@ -102,14 +97,43 @@ def test_remove_nonexistent_object_returns_false(sample_table, key):
     ghost = package.Package(key, "Z Rd", "Nowhere", "ST", "00000", "EOD", 1, "None")
     assert table.remove(key, ghost) is False
     
-#def test_print_hash_table_outputs_only_nonempty_buckets(sample_table, capsys):
-#    pass
+def test_print_hash_table_outputs_only_nonempty_buckets(sample_table, capsys):
+    table, _ = sample_table
+    table.print_hash_table()
+    out = capsys.readouterr().out
+    
+    assert "  Bucket 1:" in out
+    assert "  Bucket 2:" in out
+    assert "  Bucket 3:" in out
+    assert "  Bucket 4:" not in out    
+    assert "  Bucket 4:" not in out     
 
-#def test_collision_handling_all_items_retrievable():
-#    pass
+def test_collision_handling_all_items_retrievable(sample_table):
+    _, packages = sample_table
+    table = hash_table.HashTable(2)
+    
+    for package in packages:
+        table.insert(package.package_id, package)
+    
+    assert table.search(1) == packages[0]
+    assert table.search(2) == packages[1]
+    assert table.search(3) == packages[2]
 
-#def test_empty_table_iteration_yields_nothing():
-#    pass
+def test_empty_table_iteration_yields_nothing():
+    empty_table = hash_table.HashTable(5)
+    for empty_bucket in empty_table:
+        assert len(empty_bucket) == 0
 
-#def test_overwrite_behavior_replaces_existing_entry(sample_table):
-#    pass
+def test_overwrite_behavior_replaces_existing_entry(sample_table):
+    table, package_list= sample_table
+    ghost1 = package.Package(1, "Z Rd", "Nowhere", "ST", "00000", "EOD", 1, "None")
+    ghost2 = package.Package(2, "Z Rd", "Nowhere", "ST", "00000", "EOD", 1, "None")
+    ghost3 = package.Package(3, "Z Rd", "Nowhere", "ST", "00000", "EOD", 1, "None")
+    
+    table.insert(ghost1.package_id, ghost1)
+    table.insert(ghost2.package_id, ghost2)
+    table.insert(ghost3.package_id, ghost3)
+    
+    assert table.search(1).address != "Z Rd"
+    assert table.search(2).address != "Z Rd"
+    assert table.search(3).address != "Z Rd"

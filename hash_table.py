@@ -45,7 +45,7 @@ class HashTable:
         bucket_index = self.hash(key)
         bucket_list = self.table[bucket_index]
         
-        if obj not in bucket_list:
+        if not any(item.package_id == key for item in bucket_list):
             bucket_list.append(obj)
     
     
