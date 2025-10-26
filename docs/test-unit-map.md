@@ -129,3 +129,58 @@ Represents a single delivery package and its associated data, including address,
 5. **Time formatting** – `get_time_str()` converts datetime to readable string.  
 6. **Status updates** – `mark_en_route()` and `mark_delivered()` set correct statuses and timestamps.  
 7. **Edge deadlines** – package with EOD or missing deadline handled without error.
+
+## Project Data
+
+**Responsibility:**  
+Parses CSV input files into in-memory data structures used throughout the system. Handles package, address, and distance data for initialization and routing.
+
+**Public surface:**  
+- `read_package_data(path)` → `HashTable[int, Package]`  
+- `read_address_data(path)` → `list[[id:int, city:str, address:str]]`  
+- `read_distance_data(path)` → `list[list[float]]` (square, symmetric)  
+- `csv_line_count(path)` → `int`  
+- `clean_value(str)` → `int | None | str`
+
+**Seams:**  
+- **File I/O:** use `tmp_path` to write minimal CSV fixtures for isolated testing.  
+- **Dependencies:**  
+  - Monkeypatch `Package` with a lightweight fake to avoid coupling to its real logic.  
+  - Monkeypatch `HashTable` with a fake that captures `size` and `insert()` calls.  
+  - Optionally monkeypatch `csv_line_count` to assert that it’s invoked with the correct file.  
+- **Special-note parsing:** the module calls `Package.parse_special_note()`; verify that this method is called and the result is reassigned.
+
+**Inputs / Outputs:**  
+- **Inputs:** CSV files representing packages, addresses, or distances.  
+- **Outputs:**  
+  - Populated `HashTable` or lists returned from parsing functions.  
+  - Cleaned and type-corrected values from helper functions.  
+
+**Edge cases:**  
+- **`read_distance_data` symmetry:** current in-place transpose may corrupt the upper triangle for non-symmetric input (classic bug). Tests should expose this.  
+- Blank cells in distance CSV remain `inf` until mirrored.  
+- Single-row or single-column distance matrix handled correctly.  
+- **`clean_value` conversions:** `"42"` → `42`, `" "` → `None`, `"None"` → `None`, `"003"` → `3`, non-numeric like `"EOD"` stays as `str`.  
+- **`read_package_data`:**  
+  - Mixed types in columns handled by `clean_value`.  
+  - Ensures `HashTable` created with exact size from `csv_line_count(path)`.  
+  - Each CSV row results in exactly one `insert(key=package_id, value=Package)`.  
+  - Verifies that `parse_special_note()` result is reassigned to `special_note`.  
+- **`read_address_data`:**  
+  - Ensures proper shape and order: `[int(id), city, address]`.  
+  - Invalid or non-integer IDs raise an error (or optionally skip).  
+- **`csv_line_count`:**  
+  - Empty file returns `0`.  
+  - Handles newline-terminated and mixed line endings (`\n`, `\r\n`) consistently.
+
+**Suggested tests:**  
+1. **Initialization** – verify that `read_package_data()` creates a `HashTable` sized to the number of CSV lines.  
+2. **Insertion** – confirm that each CSV row results in one `insert()` call with a cleaned key.  
+3. **Special-note parsing** – verify that `parse_special_note()` is called and reassigned.  
+4. **Type cleaning** – ensure `clean_value()` correctly handles numeric, blank, and `"None"` values.  
+5. **Whitespace handling** – extra spaces in CSV cells are trimmed and cast correctly.  
+6. **Address parsing** – address rows produce `[id, city, address]` lists.  
+7. **Distance matrix symmetry** – matrix is mirrored correctly across the diagonal.  
+8. **Blank cell mirroring** – empty cells in one triangle become filled from the opposite side.  
+9. **Single-entry matrix** – `[[0.0]]` handled correctly.  
+10. **CSV line count** – returns accurate count across different line endings and empty files.
