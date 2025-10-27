@@ -95,7 +95,7 @@ def csv_line_count(file):
 
 # Helper function that cleans the input values prior to adding to hash table.
 def clean_value(value):
-    if value == 'None' or value.strip() == '':
+    if value.strip() == 'None' or value.strip() == '':
         #print(f"Cleaning [{value}] of type {type(value)}. Returning None") # DEBUG ONLY
         return None
     try:
