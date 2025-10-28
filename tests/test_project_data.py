@@ -134,30 +134,121 @@ def test_read_package_data_survives_whitespace_and_extra_spaces(make_package_csv
             assert (
                 isinstance(value, (int, str)) or value is None
             ), f"{name} expected type {type(value)} got unstripped {type(value)}"
+
+
+@pytest.fixture
+def make_address_csv(tmp_path):
+    default_rows = default_rows = [
+        ["1", "Disneyland", "Anaheim"],
+        ["2", "The White House", "Washington"],
+        ["3", "The Alamo", "San Antonio"],
+        ["4", "Niagara Falls", "Niagara Falls"],
+        ["5", "Peter Griffin's House", "Quahog"]
+    ]
     
-'''
-def test_read_address_data_happy_path(tmp_path):
-    pass
+    def _make(rows=None, name="addresses.csv"):
+        if rows is None:
+            rows = default_rows
+        path = tmp_path / name
+        with path.open("w", newline="") as f:
+            w = csv.writer(f)
+            w.writerows(rows)
+        return path
+    return _make
+    
+def test_read_address_data_happy_path(make_address_csv):
+    csv_path = make_address_csv()
+    
+    address_list = pd.read_address_data(csv_path)
+    
+    assert len(address_list) == 5
+    for address in address_list:
+        assert len(address) == 3
+        assert isinstance(address[0], int)
+    assert address_list[0][1] == "Disneyland"
+    assert address_list[4][2] == "Quahog"
 
 def test_read_address_data_raises_on_nonint_id(tmp_path):
-    pass
+    bad_row = [
+        ["X", "Toronto", "Nowhere Street"]
+    ]
+    path = tmp_path / "bad_addresses.csv"
+    with path.open('w', newline='') as f:
+        w = csv.writer(f)
+        w.writerows(bad_row)
+    
+    with pytest.raises(ValueError) as exc_info:
+        bad_list = pd.read_address_data(path)
+    
+    assert "invalid literal" in str(exc_info.value) or "int" in str(exc_info.value)
 
 def test_read_distance_data_upper_triangle_is_mirrored_symmetrically(tmp_path):
-    pass
+    test_distance_data = [[0,'',''],
+                          [1,0,''],
+                          [2,3,0]]
+    expected_distance_data = [[0,1,2],
+                              [1,0,3],
+                              [2,3,0]]
+    path = tmp_path / "distances.csv"
+    with path.open("w", newline='') as f:
+        w = csv.writer(f)
+        w.writerows(test_distance_data)
     
-def test_read_distance_data_blank_cells_become_inf_and_then_get_mirrored(tmp_path):
-    pass
+    mirrored_matrix = pd.read_distance_data(path)
+    
+    assert mirrored_matrix == expected_distance_data
 
+def test_read_distance_data_blank_cells_become_inf(tmp_path):
+    test_distance_data = [['','',''],
+                          ['','',''],
+                          ['','','']]
+    inf = float('inf')
+    expected_distance_data = [[inf,inf,inf],
+                              [inf,inf,inf],
+                              [inf,inf,inf]]
+    path = tmp_path / "distances.csv"
+    with path.open("w", newline='') as f:
+        w = csv.writer(f)
+        w.writerows(test_distance_data)
+    
+    mirrored_matrix = pd.read_distance_data(path)
+    
+    for row in mirrored_matrix:
+        for v in row:
+            assert v == inf
+    
 def test_read_distance_data_singleton(tmp_path):
-    pass
+    test_distance_data = [[0]]
+    path = tmp_path / "distances.csv"
+    with path.open("w", newline='') as f:
+        w = csv.writer(f)
+        w.writerows(test_distance_data)
+    
+    mirrored_matrix = pd.read_distance_data(path)
+    
+    assert mirrored_matrix == [[0.0]] or mirrored_matrix == [[0]]
 
 def test_csv_line_count_empty_file(tmp_path):
-    pass
+    path = tmp_path / "empty_file.csv"
+    path.touch()
     
-def test_csv_line_count_various_line_endings(tmp_path):
-    pass
+    empty_count = pd.csv_line_count(path)
+    assert empty_count == 0
     
-def test_clean_value_conversions_parametrized():
-    pass
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        ("5", 5),
+        (42, 42),
+        ("None", None),
+        (" none ", None),
+        ("", None),
+        ("   ", None),
+        ("abc", "abc"),
+        ("123abc", "123abc"),
+        (" 7 ", 7),
+    ],
+)
+def test_clean_value_conversions_parametrized(raw, expected):
+    assert pd.clean_value(raw) == expected
     
-'''
