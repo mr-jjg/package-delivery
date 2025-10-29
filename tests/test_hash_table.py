@@ -48,7 +48,7 @@ def test_hash_with_non_integer_key_raises():
     (4, 'obj4'),
     (5, 'obj5'),
 ])
-def test_insert_adds_package_to_correct_bucket(key, obj, sample_table):
+def test_insert_adds_package_to_correct_bucket(key, obj):
     table = hash_table.HashTable(size=5)
     table.insert(key, obj)
     expected_index = table.hash(key)

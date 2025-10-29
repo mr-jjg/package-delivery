@@ -184,3 +184,25 @@ Parses CSV input files into in-memory data structures used throughout the system
 8. **Blank cell mirroring** – empty cells in one triangle become filled from the opposite side.  
 9. **Single-entry matrix** – `[[0.0]]` handled correctly.  
 10. **CSV line count** – returns accurate count across different line endings and empty files.
+
+## Warehouse Repository
+
+Responsibility:  
+Stores a single global reference to the warehouse’s package index (`HashTable`) used throughout the system. Intended to be set once during initialization and read thereafter.
+
+Public surface:  
+- `set_warehouse_hash(data)` – sets the global reference  
+- `get_warehouse_hash()` – retrieves the stored reference  
+
+Inputs / Outputs:  
+Inputs – an initialized `HashTable` containing package data.  
+Outputs – the same `HashTable` instance (reference identity preserved).  
+
+Seams:  
+- Global state can be reset for tests using `monkeypatch` or a fixture.  
+- May later include a write-once guard or type check for `HashTable`.  
+
+Edge cases:  
+- Not yet protected against multiple sets.  
+- Accepts any type (design choice pending).  
+- Shared reference means external mutations are visible to all consumers.  
