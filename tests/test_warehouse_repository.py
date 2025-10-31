@@ -44,7 +44,6 @@ def test_set_overwrites_previous_value(sample_table):
     wr.set_warehouse_hash(table2)
     assert wr.get_warehouse_hash() is table2
 
-@pytest.mark.xfail(reason="Design choice pending: prevent set as non-hash_table type.")
 @pytest.mark.parametrize("bad", ["BAD_DATA", 123, 3.14, object()])
 def test_only_accepts_hash_table_type(bad):
     with pytest.raises(ValueError) as exc_info:
@@ -57,7 +56,6 @@ def test_mutating_original_object_reflects_in_repository(sample_table):
     table.insert(mutant.package_id, mutant)
     assert wr.get_warehouse_hash().search(6) is mutant
 
-@pytest.mark.xfail(reason="Design choice pending: prevent re-set as None.")
 def test_cannot_set_to_none_explicitly(sample_table):
     table, _ = sample_table
     wr.set_warehouse_hash(table)
