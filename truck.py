@@ -14,7 +14,7 @@ class Truck:
         if package_list is None:
             package_list = []
         self.truck_id = truck_id
-        self.current_capacity = current_capacity
+        self.current_capacity = current_capacity if current_capacity < maximum_capacity else maximum_capacity
         self.maximum_capacity = maximum_capacity
         self.speed_mph = speed_mph
         self.gas = gas

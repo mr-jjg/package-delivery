@@ -5,7 +5,7 @@ import warehouse_repository as wr
 import package
 import hash_table
 
-@pytext.fixture(autouse=True)
+@pytest.fixture(autouse=True)
 def reset_repository_state(monkeypatch):
     monkeypatch.setattr(wr, "warehouse_hash", None, raising=False)
 

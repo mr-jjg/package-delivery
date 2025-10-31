@@ -39,7 +39,6 @@ def test_package_list_defaults_empty():
 
 import pytest
 
-@pytest.mark.xfail(reason="Design choice pending: prevent impossible capacity states.")
 def test_capacity_never_exceeds_maximum_future():
     t = Truck(current_capacity=17, maximum_capacity=16)
     assert t.current_capacity <= t.maximum_capacity
