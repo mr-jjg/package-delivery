@@ -4,32 +4,31 @@ address_list = None
 
 def set_address_list(data):
     global address_list
-    address_list = data
+    if not isinstance(data, list):
+        raise ValueError("address_list must be a list")
+    else:
+        address_list = data
+    #for row in data:
+        #Do something with the row to validate it, amirite?
+        #Should be in the form [int, str, str]
     
 
 def get_address_list():
     return address_list
     
 
-# Helper function that prints the address list. Simply saves space in main.
-def print_address_list(list):
-    for address in list:
-        print(address)
-    
-
 def address_to_index(address):
-    for sublist in address_list:
-        if sublist[2] == address:
-            return int(sublist[0])
-    
-    print(f"{address} not found! Returning -1")
-    return -1
+    for addr in address_list:
+        if addr[2] == address:
+            return int(addr[0])
+    return None
     
 
 def index_to_address(index):
-    for sublist in address_list:
-        if sublist[0] == index:
-            return sublist[2]
+    for addr in address_list:
+        if addr[0] == index:
+            return addr[2]
+    return None
     
 
 # A list of tuples to store unvisited vertices: ( package_id, address_index )

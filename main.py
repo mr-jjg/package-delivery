@@ -1,5 +1,5 @@
 from warehouse_repository import set_warehouse_hash, get_warehouse_hash
-from address_repository import set_address_list, print_address_list
+from address_repository import set_address_list
 from distance_repository import set_distance_matrix, print_distance_matrix
 from project_data import read_package_data, read_address_data, read_distance_data
 from package import print_package_list, print_group_list
@@ -51,7 +51,8 @@ def run(num_trucks, num_drivers):
     set_address_list(address_list)
     if VERBOSITY == "1":
         print("\nPrinting address_list:")
-        print_address_list(address_list)
+        for address in address_list:
+            print(address)
 
 
     # Read distance data from distanceCSV.csv and store into a 2d symmetrical 'distance_matrix'

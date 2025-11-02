@@ -59,5 +59,5 @@ def test_mutating_original_object_reflects_in_repository(sample_table):
 def test_cannot_set_to_none_explicitly(sample_table):
     table, _ = sample_table
     wr.set_warehouse_hash(table)
-    with pytest.raises(Exception) as exc_info:
+    with pytest.raises(ValueError) as exc_info:
         wr.set_warehouse_hash(None)
