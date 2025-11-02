@@ -25,6 +25,18 @@ def test_accepts_empty_list():
     ar.set_address_list([])
     assert ar.get_address_list() == []
 
+def test_rejects_row_with_too_few_columns(sample_table):
+    bad = sample_table + [[42, "OnlyTwoCols"]]
+    with pytest.raises(ValueError):
+        ar.set_address_list(bad)
+
+@pytest.mark.parametrize("bad_row", [["1", "Name", "Addr"], [2, "Name", 999]])
+def test_rejects_wrong_element_type(sample_table, bad_row):
+    addresses = sample_table
+    addresses.append(bad_row)
+    with pytest.raises(ValueError):
+        ar.set_address_list(bad_row)
+
 def test_set_then_get_returns_same_object_identity(sample_table):
     addresses = sample_table
     ar.set_address_list(addresses)
@@ -44,7 +56,7 @@ def test_set_overwrites_previous_value(sample_table):
 
 @pytest.mark.parametrize("bad", ["BAD_DATA", 123, 3.14, object()])
 def test_only_accepts_list_type(bad):
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(ValueError):
         ar.set_address_list(bad)
 
 def test_mutating_original_object_reflects_in_repository(sample_table):
@@ -57,8 +69,14 @@ def test_mutating_original_object_reflects_in_repository(sample_table):
 def test_cannot_set_to_none_explicitly(sample_table):
     addresses = sample_table
     ar.set_address_list(addresses)
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(ValueError):
         ar.set_address_list(None)
+
+def test_lookups_require_initialization():
+    with pytest.raises(RuntimeError):
+        ar.address_to_index("10 S Post St")
+    with pytest.raises(RuntimeError):
+        ar.index_to_address(1)
 
 def test_address_to_index_returns_correct_address(sample_table):
     addresses = sample_table
