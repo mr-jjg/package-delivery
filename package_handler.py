@@ -302,6 +302,8 @@ def anti_list_builder(package_list):
 # Based partly on KruskalsMinimumSpanningTree algorithm from zyBook 5.12. I had originally included it in the 'handle_with_package_note' function, but the logic was so useful that I decided to keep it as helper function.
 def merge_sets(set_list):
     result_list = []
+    if not set_list:
+        return result_list
     
     while set_list:
         current_set = set_list.pop()
