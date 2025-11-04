@@ -8,12 +8,16 @@ import hash_table
 @pytest.fixture
 def sample_table():
     table = hash_table.HashTable(size=5)
+    # Package values cleaned as though they were ran through project_data's clean_value helper function
     packages = [
-        package.Package(1, "123 Main St", "Salt Lake City", "ST", "84101", "10:30 AM", 5, "None"),
-        package.Package(2, "456 Elm St", "Murray", "ST",  "84107", "EOD", 7, "None"),
-        package.Package(3, "789 Oak St", "Draper", "ST",  "84020", "EOD", 2, "None"),
+        package.Package(1, "123 Maple Street", "Springfield", "IL", 62701, "10:00 AM", 2.5, "T, 2"),
+        package.Package(2, "456 Oak Avenue", "Chicago", "IL", 60614, "EOD", 5.0, None),
+        package.Package(3, "789 Pine Road", "Naperville", "IL", 60540, "EOD", 1.2, "D, 9:05 AM"),
+        package.Package(4, "321 Birch Lane", "Peoria", "IL", 61602, "12:00 PM", 3.3, "X, 10:20 AM, 410 S State St, Salt Lake City, UT, 84111"),
+        package.Package(5, "654 Cedar Street", "Champaign", "IL", 61820, "4:00 PM", 4.8, "W, 15, 19"),
     ]
     for pkg in packages:
+        pkg.special_note = pkg.parse_special_note()
         table.insert(pkg.package_id, pkg)
     return table, packages
 
@@ -23,24 +27,39 @@ def patch_get_warehouse_hash(monkeypatch, sample_table):
     monkeypatch.setattr(ph, "get_warehouse_hash", lambda: table)
     return packages
 
-@pytest.fixture
-def make_packages():
-    #new_package = Package(package_id, address, city, state, zip_code, delivery_deadline, weight_kilo, special_note)
-    def _make_packages():
-        return [
-            package.Package(1, "123 Maple Street", "Springfield", "IL", "62701", "10:00 AM", 2.5, "T, 2"),
-            package.Package(2, "456 Oak Avenue", "Chicago", "IL", "60614", "", 5.0, "None"),
-            package.Package(3, "789 Pine Road", "Naperville", "IL", "60540", "EOD", 1.2, "D, 9:05 AM"),
-            package.Package(4, "321 Birch Lane", "Peoria", "IL", "61602", "12:00 PM", 3.3, "X, 10:20 AM, 410 S State St, Salt Lake City, UT, 84111"),
-            package.Package(5, "654 Cedar Street", "Champaign", "IL", "61820", "4:00 PM", 4.8, "W, 15, 19"),
-        ]
-    return _make_packages
-
 def test_list_builder_returns_all_packages(patch_get_warehouse_hash):
     result = ph.list_builder()
     package_ids = [p.package_id for p in result]
-    assert set(package_ids) ==  {1, 2, 3}
+    assert set(package_ids) ==  {1, 2, 3, 4, 5}
     assert package_ids == sorted(package_ids)
+
+def test_list_builder_returns_only_with_attributes(patch_get_warehouse_hash):
+    result = ph.list_builder('special_note')
+    package_ids = [p.package_id for p in result]
+    assert set(package_ids) == {1, 3, 4, 5}
+    assert len(package_ids) == 4
+    
+def test_list_builder_excludes_values(patch_get_warehouse_hash):
+    result = ph.list_builder('delivery_deadline', 'delivery_deadline', package.Package.EOD_TIME)
+    package_ids = [p.package_id for p in result]
+    assert set(package_ids) == {1, 4, 5}
+    assert len(package_ids) == 3
+    
+def test_list_builder_excludes_values_in_list(patch_get_warehouse_hash):
+    result = ph.list_builder('special_note', 'special_note', 'W')
+    package_ids = [p.package_id for p in result]
+    assert set(package_ids) == {1, 3, 4}
+    assert len(package_ids) == 3
+    
+def test_list_builder_empty(monkeypatch):
+    monkeypatch.setattr(ph, "get_warehouse_hash", lambda: [])
+    assert ph.list_builder() == []    
+
+def test_list_builder_missing_attribute_ignored(monkeypatch):
+    class Dummy:
+        def __init__(self, pid): self.package_id = pid
+    monkeypatch.setattr(ph, "get_warehouse_hash", lambda: [[Dummy(n) for n in range(100)]])
+    assert ph.list_builder('special_note') == []
 
 @pytest.mark.parametrize(
     "sets, results",

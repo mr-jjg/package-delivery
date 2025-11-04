@@ -267,7 +267,7 @@ def list_builder(attr=None, ex_attr=None, ex_val=None):
             else:
                 #print(f"Checking package: {package}") # DEBUG ONLY
                 attr_val = getattr(package, attr, None)
-                ex_attr_val = getattr(package, ex_attr, None)
+                ex_attr_val = getattr(package, ex_attr, None) if ex_attr is not None else None
                 
                 #print(f"attr_val: {attr_val}, ex_attr_val: {ex_attr_val}") # DEBUG ONLY
                 
