@@ -25,7 +25,8 @@ class PackageHandler:
                 earliest_deadline = min(i_package.delivery_deadline, j_package.delivery_deadline)
                 
                 # i_package has a special note (not 'X') and j_package does not
-                if i_package.special_note and i_package.special_note != 'X' and j_package.special_note is None:
+                tag = i_package.special_note[0] if i_package.special_note else None
+                if tag and tag != 'X' and j_package.special_note is None:
                     j_package.special_note = i_package.special_note
                     i_package.delivery_deadline = j_package.delivery_deadline = earliest_deadline
                     
@@ -287,7 +288,7 @@ def list_builder(attr=None, ex_attr=None, ex_val=None):
     return sorted(package_list)
 
 
-def anti_list_builder(package_list):
+def anti_list_builder(package_list=[]):
     warehouse_hash = get_warehouse_hash()
     anti_list = []
     
@@ -296,7 +297,7 @@ def anti_list_builder(package_list):
             if package not in package_list:
                 anti_list.append(package)
     
-    return anti_list
+    return sorted(anti_list)
     
 
 # Based partly on KruskalsMinimumSpanningTree algorithm from zyBook 5.12. I had originally included it in the 'handle_with_package_note' function, but the logic was so useful that I decided to keep it as helper function.
