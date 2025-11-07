@@ -6,6 +6,16 @@ import package_handler as ph
 import package
 import hash_table
 import warehouse_repository as wr
+from datetime import time
+
+@pytest.fixture
+def warehouse_reset():
+    prev = wr.get_warehouse_hash() if hasattr(wr, "get_warehouse_hash") else None
+    try:
+        yield
+    finally:
+        if prev is not None:
+            wr.set_warehouse_hash(prev)
 
 @pytest.fixture
 def sample_table():
@@ -61,7 +71,7 @@ def test_merge_addresses_does_not_copy_when_note_is_X(patch_get_warehouse_hash):
     assert pkg_a.delivery_deadline == datetime.time(12, 0)
     assert pkg_b.delivery_deadline == datetime.time(13, 0)
 
-def test_merge_addresses_when_both_none_sets_W_links_and_earliest_deadline_for_both():
+def test_merge_addresses_when_both_none_sets_W_links_and_earliest_deadline_for_both(warehouse_reset):
     table = hash_table.HashTable(size=4)
     packages = [
         package.Package(1, "123 Maple Street", "Springfield", "IL", 62701, "10:00 AM", 2.5, None),
@@ -87,6 +97,102 @@ def test_merge_addresses_is_idempotent_on_second_call(patch_get_warehouse_hash):
     handler.merge_addresses()
     after = snapshot(patch_get_warehouse_hash)
     assert before == after
+    
+def test_build_constraints_list_baseline_union(warehouse_reset):
+    # Order via Package.__lt__ -> package_id
+    table = hash_table.HashTable(size=5)
+    packages = [
+        package.Package(1, "123 Maple Street", "Springfield", "IL", 62701, "EOD", 2.5, "T, 2"),
+        package.Package(2, "456 Oak Avenue", "Chicago", "IL", 60614, "10:30 AM", 5.0, None),
+        package.Package(3, "789 Pine Road", "Naperville", "IL", 60540, "EOD", 1.2, "X, 10:20 AM, 410 S State St, Salt Lake City, UT, 84111"),
+        package.Package(4, "321 Birch Lane", "Peoria", "IL", 61602, "EOD", 3.3, None),
+        package.Package(5, "654 Cedar Street", "Champaign", "IL", 61820, "4:00 PM", 4.8, "W, 15, 19"),
+    ]
+    for pkg in packages:
+        pkg.special_note = pkg.parse_special_note()
+        table.insert(pkg.package_id, pkg)
+    warehouse_hash = wr.set_warehouse_hash(table)
+    handler = ph.PackageHandler()
+    constraints_list = handler.build_constraints_list()
+    assert len(constraints_list) == 3
+    assert packages[2] not in constraints_list
+    assert packages[3] not in constraints_list
+    assert len(set(constraints_list)) == len(constraints_list)
+    assert constraints_list[0].package_id == 1
+    assert constraints_list[1].package_id == 2
+    assert constraints_list[2].package_id == 5
+
+def test_build_constraints_list_excludes_eod_plus_special_note_x(warehouse_reset):
+    table = hash_table.HashTable(size=5)
+    packages = [
+        package.Package(1, "123 Maple Street", "Springfield", "IL", 62701, "EOD", 2.5, "X, 10:20 AM, 410 S State St, Salt Lake City, UT, 84111"),
+        package.Package(2, "456 Oak Avenue", "Chicago", "IL", 60614, "EOD", 5.0, "X, 10:20 AM, 410 S State St, Salt Lake City, UT, 84111"),
+        package.Package(3, "789 Pine Road", "Naperville", "IL", 60540, "EOD", 1.2, "X, 10:20 AM, 410 S State St, Salt Lake City, UT, 84111"),
+        package.Package(4, "321 Birch Lane", "Peoria", "IL", 61602, "EOD", 3.3, "X, 10:20 AM, 410 S State St, Salt Lake City, UT, 84111"),
+        package.Package(5, "654 Cedar Street", "Champaign", "IL", 61820, "EOD", 4.8, "X, 10:20 AM, 410 S State St, Salt Lake City, UT, 84111"),
+    ]
+    for pkg in packages:
+        pkg.special_note = pkg.parse_special_note()
+        table.insert(pkg.package_id, pkg)
+    warehouse_hash = wr.set_warehouse_hash(table)
+    handler = ph.PackageHandler()
+    constraints_list = handler.build_constraints_list()
+    assert len(constraints_list) == 0
+    assert constraints_list == []
+
+def test_build_constraints_list_includes_delivery_deadline_with_special_note_x(warehouse_reset):
+    table = hash_table.HashTable(size=5)
+    packages = [
+        package.Package(1, "123 Maple Street", "Springfield", "IL", 62701, "9:00 AM", 2.5, "X, 10:20 AM, 410 S State St, Salt Lake City, UT, 84111"),
+        package.Package(2, "456 Oak Avenue", "Chicago", "IL", 60614, "10:00 AM", 5.0, "X, 10:20 AM, 410 S State St, Salt Lake City, UT, 84111"),
+        package.Package(3, "789 Pine Road", "Naperville", "IL", 60540, "11:00 AM", 1.2, "X, 10:20 AM, 410 S State St, Salt Lake City, UT, 84111"),
+        package.Package(4, "321 Birch Lane", "Peoria", "IL", 61602, "12:00 PM", 3.3, "X, 10:20 AM, 410 S State St, Salt Lake City, UT, 84111"),
+        package.Package(5, "654 Cedar Street", "Champaign", "IL", 61820, "1:00 PM", 4.8, "X, 10:20 AM, 410 S State St, Salt Lake City, UT, 84111"),
+    ]
+    for pkg in packages:
+        pkg.special_note = pkg.parse_special_note()
+        table.insert(pkg.package_id, pkg)
+    warehouse_hash = wr.set_warehouse_hash(table)
+    handler = ph.PackageHandler()
+    constraints_list = handler.build_constraints_list()
+    assert len(constraints_list) == 5
+    assert constraints_list == packages
+    assert [p.package_id for p in constraints_list] == [1, 2, 3, 4, 5]
+
+def test_build_constraints_removes_dupes(warehouse_reset):
+    table = hash_table.HashTable(size=5)
+    packages = [
+        package.Package(6, "123 Maple Street", "Springfield", "IL", 62701, "11:00 AM", 2.5, "T, 2"),
+        package.Package(7, "456 Oak Avenue", "Chicago", "IL", 60614, "12:00 AM", 5.0, "W, 15, 19"),
+        package.Package(6, "123 Maple Street", "Springfield", "IL", 62701, "11:00 AM", 2.5, "T, 2"),
+        package.Package(7, "456 Oak Avenue", "Chicago", "IL", 60614, "12:00 AM", 5.0, "W, 15, 19")
+    ]
+    for pkg in packages:
+        pkg.special_note = pkg.parse_special_note()
+        table.insert(pkg.package_id, pkg)
+    warehouse_hash = wr.set_warehouse_hash(table)
+    handler = ph.PackageHandler()
+    constraints_list = handler.build_constraints_list()
+    ids = [p.package_id for p in constraints_list]
+    assert len(ids) == len(set(ids)) == 2
+    assert sorted(ids) == [6, 7]
+
+def test_build_constraints_list_uses_identity_semantics(patch_get_warehouse_hash):
+    handler = ph.PackageHandler()
+    constraints_list = handler.build_constraints_list()
+    src = {p.package_id: p for p in patch_get_warehouse_hash}
+    for p in constraints_list:
+        assert p is src[p.package_id]
+
+def test_build_constraints_list_does_not_mutate(patch_get_warehouse_hash):
+    handler = ph.PackageHandler()
+    constraints_list = handler.build_constraints_list()
+    assert constraints_list[0].package_id == 1
+    assert constraints_list[0].address == "123 Maple Street"
+    assert constraints_list[0].city == "Springfield"
+    assert constraints_list[0].state == "IL"
+    assert constraints_list[0].zip_code == 62701
+    assert constraints_list[0].delivery_deadline == time(10, 0)
 
 def test_list_builder_returns_all_packages(patch_get_warehouse_hash):
     result = ph.list_builder()
