@@ -45,6 +45,12 @@ def patch_get_warehouse_hash(monkeypatch, sample_table):
 def snapshot(packages):
     return [(p.package_id, p.address, p.delivery_deadline, p.special_note) for p in packages]
 
+def make_pkg(pid=1, deadline=None, note=None):
+    p = package.Package(pid, "address", "city", "state", 99999, None, 0.0, None)
+    p.delivery_deadline = deadline if deadline is not None else package.Package.EOD_TIME
+    p.special_note = note
+    return p
+
 def test_merge_addresses_does_not_change_packages_with_different_addresses(patch_get_warehouse_hash):
     before = snapshot(patch_get_warehouse_hash[:5])
     before.pop(1)
@@ -193,6 +199,73 @@ def test_build_constraints_list_does_not_mutate(patch_get_warehouse_hash):
     assert constraints_list[0].state == "IL"
     assert constraints_list[0].zip_code == 62701
     assert constraints_list[0].delivery_deadline == time(10, 0)
+    
+@pytest.mark.parametrize(
+    "expected, deadline, note",
+    [
+        # Priority 0:    delivery deadline and     delayed
+        (0, datetime.time(0, 0), ['D', datetime.time(12, 0)]),
+        (0, datetime.time(11, 59), ['D', datetime.time(12, 0)]),
+        # Priority 1:    delivery deadline and not delayed
+        (1, datetime.time(0, 0), None),
+        (1, datetime.time(0, 0), ['X', "Address"]),
+        (1, datetime.time(11, 0), ['T', 2]),
+        (1, datetime.time(11, 0), ['W', 2]),
+        # Priority 2: no delivery deadline and not delayed
+        (2, package.Package.EOD_TIME, None),
+        (2, package.Package.EOD_TIME, ['X', "Address"]),
+        (2, package.Package.EOD_TIME, ['T', 2]),
+        (2, package.Package.EOD_TIME, ['W', 2]),
+        # Priority 3: no delivery deadline and     delayed
+        (3, package.Package.EOD_TIME, ['D', datetime.time(12, 0)]),
+        (3, package.Package.EOD_TIME, ['D', datetime.time(12, 0)])
+    ]
+)
+def test_set_package_priorities_single(expected, deadline, note):
+    table = hash_table.HashTable(size=1)
+    pkg = make_pkg(1, deadline, note)
+    table.insert(pkg.package_id, pkg)
+    handler = ph.PackageHandler()
+    handler.set_package_priorities([pkg])
+    assert pkg.delivery_deadline == deadline
+    assert pkg.special_note == note
+    assert pkg.priority == expected
+    
+def test_set_package_priorities_multiple():
+    handler = ph.PackageHandler()
+    packages = [
+        make_pkg(1, datetime.time(9, 0), ['D', datetime.time(13, 0)]),
+        make_pkg(2, datetime.time(13, 0), None),
+        make_pkg(3, package.Package.EOD_TIME, None),
+        make_pkg(4, package.Package.EOD_TIME, ['D', datetime.time(13, 0)])
+    ]
+    handler.set_package_priorities(packages)
+    priorities = [p.priority for p in packages]
+    assert priorities == [0, 1, 2, 3]
+    
+def test_note_lowercase_d_is_not_delayed():
+    handler = ph.PackageHandler()
+    pkg1 = make_pkg(1, datetime.time(9, 0), ['d', datetime.time(13, 0)])
+    pkg2 = make_pkg(2, package.Package.EOD_TIME, ['d', datetime.time(13, 0)])
+    handler.set_package_priorities([pkg1, pkg2])
+    assert pkg1.priority == 1
+    assert pkg2.priority == 2
+
+def test_note_leading_space_then_D_is_not_delayed_currently():
+    handler = ph.PackageHandler()
+    pkg1 = make_pkg(1, datetime.time(9, 0), [' D', datetime.time(13, 0)])
+    pkg2 = make_pkg(2, package.Package.EOD_TIME, [' D', datetime.time(13, 0)])
+    handler.set_package_priorities([pkg1, pkg2])
+    assert pkg1.priority == 1
+    assert pkg2.priority == 2
+
+def test_note_whitespace_only_is_not_delayed():
+    handler = ph.PackageHandler()
+    pkg1 = make_pkg(1, datetime.time(9, 0), [' ', datetime.time(13, 0)])
+    pkg2 = make_pkg(2, package.Package.EOD_TIME, [' ', datetime.time(13, 0)])
+    handler.set_package_priorities([pkg1, pkg2])
+    assert pkg1.priority == 1
+    assert pkg2.priority == 2
 
 def test_list_builder_returns_all_packages(patch_get_warehouse_hash):
     result = ph.list_builder()
