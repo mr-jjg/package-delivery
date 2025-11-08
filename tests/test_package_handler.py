@@ -19,7 +19,7 @@ def warehouse_reset():
 
 @pytest.fixture
 def sample_table():
-    table = hash_table.HashTable(size=5)
+    table = hash_table.HashTable(size=8)
     # Package values cleaned as though they were ran through project_data's clean_value helper function
     packages = [
         package.Package(1, "123 Maple Street", "Springfield", "IL", 62701, "10:00 AM", 2.5, "T, 2"),
@@ -266,6 +266,72 @@ def test_note_whitespace_only_is_not_delayed():
     handler.set_package_priorities([pkg1, pkg2])
     assert pkg1.priority == 1
     assert pkg2.priority == 2
+
+@pytest.fixture
+def sample_special_notes(monkeypatch):
+    table = hash_table.HashTable(size=5)
+    # Package values cleaned as though they were ran through project_data's clean_value helper function
+    packages = [
+        package.Package(1, "123 Maple Street", "Springfield", "IL", 62701, "10:00 AM", 2.5, "T, 1"),
+        package.Package(2, "456 Oak Avenue", "Chicago", "IL", 60614, "EOD", 5.0, "T, 2"),
+        package.Package(3, "789 Pine Road", "Naperville", "IL", 60540, "EOD", 1.2, "D, 9:05 AM"),
+        package.Package(4, "321 Birch Lane", "Peoria", "IL", 61602, "EOD", 3.3, "D, 9:30 AM"),
+        package.Package(5, "654 Cedar Street", "Champaign", "IL", 61820, "4:00 PM", 4.8, "W, 6"),
+        package.Package(6, "123 Maple Street", "Springfield", "IL", 62701, "11:00 AM", 2.5, "W, 7"),
+        package.Package(7, "456 Oak Avenue", "Chicago", "IL", 60614, "12:00 AM", 5.0, None),
+        package.Package(8, "321 Birch Lane", "Peoria", "IL", 61602, "1:00 PM", 3.3, None),
+        package.Package(9, "789 Pine Road", "Naperville", "IL", 60540, "EOD", 1.2, None),
+    ]
+    for pkg in packages:
+        pkg.special_note = pkg.parse_special_note()
+        table.insert(pkg.package_id, pkg)
+    monkeypatch.setattr(ph, "get_warehouse_hash", lambda: table)
+    return packages
+
+def test_handle_with_truck_note_sets_truck(sample_special_notes):
+    handler = ph.PackageHandler()
+    handler.handle_with_truck_note(sample_special_notes)
+    modified = [pkg.package_id for pkg in sample_special_notes if pkg.truck is not None]
+    assert len(modified) == 2
+    assert modified == [1, 2]
+    assert sample_special_notes[0].truck == 0
+    assert sample_special_notes[1].truck == 1
+
+def test_handle_with_truck_does_not_mutate_other_packages(sample_special_notes):
+    handler = ph.PackageHandler()
+    handler.handle_with_truck_note(sample_special_notes)
+    not_modified = [pkg.package_id for pkg in sample_special_notes if pkg.truck is None]
+    assert len(not_modified) == 7
+    assert not_modified == [3, 4, 5, 6, 7, 8, 9]
+
+def test_handle_with_truck_idempotence(sample_special_notes):
+    handler = ph.PackageHandler()
+    handler.handle_with_truck_note(sample_special_notes)
+    assert sample_special_notes[0].truck == 0
+    assert sample_special_notes[1].truck == 1
+    handler.handle_with_truck_note(sample_special_notes)
+    assert sample_special_notes[0].truck == 0
+    assert sample_special_notes[1].truck == 1
+
+@pytest.mark.parametrize(
+    "t_note, expected",
+    [
+        ("t, 1", "t, 1"),
+        ("t, 2", "t, 2"),
+        (" T, 1", " T, 1"),
+        (" T, 2", " T, 2"),
+        (" , 1", " , 1"),
+        (" , 2", " , 2")
+    ]
+)
+def test_handle_with_truck_incorrect_input_is_not_set(t_note, expected):
+    pkg = package.Package(1, "123 Maple Street", "Springfield", "IL", 62701, "10:00 AM", 2.5, t_note)
+    table = hash_table.HashTable(size=1)
+    table.insert(pkg.package_id, pkg)
+    handler = ph.PackageHandler()
+    handler.handle_with_truck_note([pkg])
+    assert pkg.truck is None
+    assert pkg.special_note == t_note
 
 def test_list_builder_returns_all_packages(patch_get_warehouse_hash):
     result = ph.list_builder()
