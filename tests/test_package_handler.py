@@ -1,10 +1,12 @@
 # /tests/test_package_handler.py
 
 import datetime
+import fleet
 import pytest
 import package_handler as ph
 import package
 import hash_table
+import truck
 import warehouse_repository as wr
 from datetime import time
 
@@ -274,7 +276,7 @@ def sample_special_notes(monkeypatch):
     packages = [
         package.Package(1, "123 Maple Street", "Springfield", "IL", 62701, "10:00 AM", 2.5, "T, 1"),
         package.Package(2, "456 Oak Avenue", "Chicago", "IL", 60614, "EOD", 5.0, "T, 2"),
-        package.Package(3, "789 Pine Road", "Naperville", "IL", 60540, "EOD", 1.2, "D, 9:05 AM"),
+        package.Package(3, "789 Pine Road", "Naperville", "IL", 60540, "10:00 AM", 1.2, "D, 9:05 AM"),
         package.Package(4, "321 Birch Lane", "Peoria", "IL", 61602, "EOD", 3.3, "D, 9:30 AM"),
         package.Package(5, "654 Cedar Street", "Champaign", "IL", 61820, "4:00 PM", 4.8, "W, 6"),
         package.Package(6, "123 Maple Street", "Springfield", "IL", 62701, "11:00 AM", 2.5, "W, 7"),
@@ -309,9 +311,10 @@ def test_handle_with_truck_idempotence(sample_special_notes):
     handler.handle_with_truck_note(sample_special_notes)
     assert sample_special_notes[0].truck == 0
     assert sample_special_notes[1].truck == 1
-    handler.handle_with_truck_note(sample_special_notes)
-    assert sample_special_notes[0].truck == 0
-    assert sample_special_notes[1].truck == 1
+    for i in range(10):
+        handler.handle_with_truck_note(sample_special_notes)
+        assert sample_special_notes[0].truck == 0
+        assert sample_special_notes[1].truck == 1
 
 @pytest.mark.parametrize(
     "t_note, expected",
@@ -332,6 +335,78 @@ def test_handle_with_truck_incorrect_input_is_not_set(t_note, expected):
     handler.handle_with_truck_note([pkg])
     assert pkg.truck is None
     assert pkg.special_note == t_note
+
+def test_handle_delayed_without_deadline_note_does_not_handle_packages_with_deadlines(sample_special_notes):
+    fl = fleet.Fleet(1)
+    handler = ph.PackageHandler()
+    handler.handle_delayed_without_deadline_note(sample_special_notes, fl)
+    assert sample_special_notes[2].truck is None
+
+def test_handle_delayed_without_deadline_note_handles_packages_without_deadlines(sample_special_notes):
+    fl = fleet.Fleet(1)
+    handler = ph.PackageHandler()
+    handler.handle_delayed_without_deadline_note(sample_special_notes, fl)
+    assert sample_special_notes[3].truck is 0
+    
+def test_handle_delayed_without_deadline_note_adds_to_first_empty_truck(sample_special_notes):
+    fl = fleet.Fleet(4)
+    fl.truck_list[0].driver = "William"
+    fl.truck_list[1].driver = "Keekus"
+    pkg = package.Package(1, "123 Maple Street", "Springfield", "IL", 62701, "EOD", 2.5, ["D", datetime.time(13, 0)])
+    handler = ph.PackageHandler()
+    handler.handle_delayed_without_deadline_note([pkg], fl)
+    assert pkg.truck == 2
+
+@pytest.mark.parametrize(
+    "d_note, current, expected",
+    [
+        (["D", datetime.time(13, 0)], None, 0),
+        (["D", datetime.time(13, 0)], 0, 0),
+        (["D", datetime.time(13, 0)], 1, 0)
+    ]
+)
+def test_handle_delayed_without_deadline_note_overwrites_existing_truck_field(d_note, current, expected):
+    fl = fleet.Fleet(1)
+    pkg = package.Package(1, "123 Maple Street", "Springfield", "IL", 62701, "EOD", 2.5, d_note)
+    pkg.truck = current
+    table = hash_table.HashTable(size=1)
+    table.insert(pkg.package_id, pkg)
+    handler = ph.PackageHandler()
+    handler.handle_delayed_without_deadline_note([pkg], fl)
+    assert pkg.truck == expected
+
+def test_handle_delayed_without_deadline_note_no_empty_trucks():
+    fl = fleet.Fleet(2)
+    fl.truck_list[0].driver = "William"
+    fl.truck_list[1].driver = "Keekus"
+    pkg = package.Package(1, "123 Maple Street", "Springfield", "IL", 62701, "EOD", 2.5, ["D", datetime.time(13, 0)])
+    table = hash_table.HashTable(size=1)
+    table.insert(pkg.package_id, pkg)
+    handler = ph.PackageHandler()
+    handler.handle_delayed_without_deadline_note([pkg], fl)
+    assert pkg.truck == 1
+
+def test_handle_delayed_without_deadline_note_handles_empty_fleet():
+    fl = fleet.Fleet(0)
+    pkg = package.Package(1, "123 Maple Street", "Springfield", "IL", 62701, "EOD", 2.5, ["D", datetime.time(13, 0)])
+    table = hash_table.HashTable(size=1)
+    table.insert(pkg.package_id, pkg)
+    handler = ph.PackageHandler()
+    with pytest.raises(ValueError):
+        handler.handle_delayed_without_deadline_note([pkg], fl)
+    assert pkg.truck != -1
+
+def test_handle_delayed_without_deadline_note_is_idempotent():
+    fl = fleet.Fleet(1)
+    pkg = package.Package(1, "123 Maple Street", "Springfield", "IL", 62701, "EOD", 2.5, ["D", datetime.time(13, 0)])
+    table = hash_table.HashTable(size=1)
+    table.insert(pkg.package_id, pkg)
+    handler = ph.PackageHandler()
+    handler.handle_delayed_without_deadline_note([pkg], fl)
+    assert pkg.truck == 0
+    for i in range(10):
+        handler.handle_delayed_without_deadline_note([pkg], fl)
+        assert pkg.truck == 0
 
 def test_list_builder_returns_all_packages(patch_get_warehouse_hash):
     result = ph.list_builder()

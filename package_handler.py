@@ -105,9 +105,11 @@ class PackageHandler:
         
     
     def handle_delayed_without_deadline_note(self, package_list, fleet):
+        if fleet.num_trucks == 0:
+            raise ValueError("Fleet is empty")
         warehouse_hash = get_warehouse_hash()
         
-        for package in package_list: ##### [:]????
+        for package in package_list:
             # Have to remember that 'EOD' is represented as Package.EOD_TIME in the package object.
             if package.special_note and package.special_note[0] == 'D' and package.delivery_deadline == Package.EOD_TIME:
                 empty_truck_found = False
