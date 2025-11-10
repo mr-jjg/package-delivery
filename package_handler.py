@@ -69,39 +69,39 @@ class PackageHandler:
     def set_package_priorities(self, ungrouped_list):
         warehouse_hash = get_warehouse_hash()
         
-        for package in ungrouped_list:
-            #modified_package = hash_table.search(package.package_id)
+        for pkg in ungrouped_list:
+            #modified_package = hash_table.search(pkg.package_id)
             
             # Priority 0:    delivery deadline and     delayed
-            if package.delivery_deadline != Package.EOD_TIME and (package.special_note and package.special_note[0] == 'D'):
-                #print(f"Adding package {package.package_id} to Priority 0 group.") # DEBUG ONLY
-                package.priority = 0
+            if pkg.delivery_deadline != Package.EOD_TIME and (pkg.special_note and pkg.special_note[0] == 'D'):
+                #print(f"Adding package {pkg.package_id} to Priority 0 group.") # DEBUG ONLY
+                pkg.priority = 0
                 
             # Priority 1:    delivery deadline and not delayed
-            elif package.delivery_deadline != Package.EOD_TIME and (not package.special_note or package.special_note[0] != 'D'):
-                #print(f"Adding package {package.package_id} to Priority 1 group.") # DEBUG ONLY
-                package.priority = 1
+            elif pkg.delivery_deadline != Package.EOD_TIME and (not pkg.special_note or pkg.special_note[0] != 'D'):
+                #print(f"Adding package {pkg.package_id} to Priority 1 group.") # DEBUG ONLY
+                pkg.priority = 1
                 
             # Priority 2: no delivery deadline and not delayed
-            elif package.delivery_deadline == Package.EOD_TIME and (not package.special_note or package.special_note[0] != 'D'):
-                #print(f"Adding package {package.package_id} to Priority 2 group.") # DEBUG ONLY
-                package.priority = 2
+            elif pkg.delivery_deadline == Package.EOD_TIME and (not pkg.special_note or pkg.special_note[0] != 'D'):
+                #print(f"Adding package {pkg.package_id} to Priority 2 group.") # DEBUG ONLY
+                pkg.priority = 2
                 
             # Priority 3: no delivery deadline and     delayed
-            elif package.delivery_deadline == Package.EOD_TIME and (package.special_note and package.special_note[0] == 'D'):
-                #print(f"Adding package {package.package_id} to Priority 3 group.") # DEBUG ONLY
-                package.priority = 3
+            elif pkg.delivery_deadline == Package.EOD_TIME and (pkg.special_note and pkg.special_note[0] == 'D'):
+                #print(f"Adding package {pkg.package_id} to Priority 3 group.") # DEBUG ONLY
+                pkg.priority = 3
         
     
     def handle_with_truck_note(self, package_list):
         warehouse_hash = get_warehouse_hash()
         
-        for package in package_list[:]:
-            if package.special_note and package.special_note[0] == 'T':
-                #modified_package = warehouse_hash.search(package.package_id)
+        for pkg in package_list[:]:
+            if pkg.special_note and pkg.special_note[0] == 'T':
+                #modified_package = warehouse_hash.search(pkg.package_id)
                 # Truck minus one, because this will be the index of the fleet.
-                #modified_package.truck = package.special_note[1] - 1
-                package.truck = package.special_note[1] - 1
+                #modified_package.truck = pkg.special_note[1] - 1
+                pkg.truck = pkg.special_note[1] - 1
         
     
     def handle_delayed_without_deadline_note(self, package_list, fleet):
@@ -109,19 +109,19 @@ class PackageHandler:
             raise ValueError("Fleet is empty")
         warehouse_hash = get_warehouse_hash()
         
-        for package in package_list:
+        for pkg in package_list:
             # Have to remember that 'EOD' is represented as Package.EOD_TIME in the package object.
-            if package.special_note and package.special_note[0] == 'D' and package.delivery_deadline == Package.EOD_TIME:
+            if pkg.special_note and pkg.special_note[0] == 'D' and pkg.delivery_deadline == Package.EOD_TIME:
                 empty_truck_found = False
                 for i, truck in enumerate(fleet):
                     # Add package to first empty truck in fleet
                     if truck.driver is None:
-                        package.truck = i
+                        pkg.truck = i
                         empty_truck_found = True
                         break
                 if not empty_truck_found:
-                    package.truck = len(fleet.truck_list) - 1
-                #print(f"Package {package.package_id} has a D note: {package.special_note}, and deadline is not EOD: {package.delivery_deadline}")
+                    pkg.truck = len(fleet.truck_list) - 1
+                #print(f"Package {pkg.package_id} has a D note: {pkg.special_note}, and deadline is not EOD: {pkg.delivery_deadline}")
         
     
     def handle_with_package_note(self, package_list):
@@ -129,10 +129,10 @@ class PackageHandler:
         set_list = []
         
         # Populate the set_list with the special note 'W'. For example, say package 14 has a special note: 'W, 15, 19'. The new_set is first initialized with {14}. Then 15 and 19 are added {14, 15, 19}. Finally this set is appended to the set_list.
-        for package in package_list:
-            if package.special_note and package.special_note[0] == 'W':
-                new_set = {package.package_id}
-                new_set.update(package.special_note[1:])
+        for pkg in package_list:
+            if pkg.special_note and pkg.special_note[0] == 'W':
+                new_set = {pkg.package_id}
+                new_set.update(pkg.special_note[1:])
                 set_list.append(new_set)
         
         ''' # DEBUG ONLY
@@ -160,27 +160,27 @@ class PackageHandler:
         
         # Set the group attribute of each package based on index of their parent container in result_groups_list
         for i, group in enumerate(result_groups_list):
-            for package in group:
-                package.group = i
+            for pkg in group:
+                pkg.group = i
         
         # Find the minimum priority in each package group, and assign each other package in that group with that priority.
         for package_group in result_groups_list:
             min_priority = float('inf')
-            for package in package_group:
+            for pkg in package_group:
                 #hashed_package = hash_table.search(package.package_id)
-                if package.priority is not None:
-                    min_priority = min(min_priority, package.priority)
+                if pkg.priority is not None:
+                    min_priority = min(min_priority, pkg.priority)
                 else:
                     min_priority = 4
                 
                 # We're adding to the package list so that this can be returned and update the constraints list.
-                if package not in package_list:
-                    package_list.append(package)
+                if pkg not in package_list:
+                    package_list.append(pkg)
             
             # Finally, reiterate through the group and update the priority.
-            for package in package_group:
-                #modified_package = hash_table.search(package.package_id)
-                package.priority = min_priority
+            for pkg in package_group:
+                #modified_package = hash_table.search(pkg.package_id)
+                pkg.priority = min_priority
         
         return package_list
         
@@ -190,24 +190,24 @@ class PackageHandler:
         
         remaining_list = anti_list_builder(package_list)
         
-        for package in remaining_list:
-            if package.special_note is None:
-                package.priority = 4
-                package_list.append(package)
+        for pkg in remaining_list:
+            if pkg.special_note is None:
+                pkg.priority = 4
+                package_list.append(pkg)
             else:
-                package.priority = 5
-                package_list.append(package)
+                pkg.priority = 5
+                package_list.append(pkg)
         
     
     def group_and_sort_list(self, unsorted_list):
         return_list = [[] for _ in range(6)]
         
         # Group packages by priority
-        for package in unsorted_list:
-            #print(f"  Priority: {package.priority}", end=", ") # DEBUG ONLY
-            if 0 <= package.priority <= 5:
-                #print(f"adding to group {package.priority}") # DEBUG ONLY
-                return_list[package.priority].append(package)
+        for pkg in unsorted_list:
+            #print(f"  Priority: {pkg.priority}", end=", ") # DEBUG ONLY
+            if 0 <= pkg.priority <= 5:
+                #print(f"adding to group {pkg.priority}") # DEBUG ONLY
+                return_list[pkg.priority].append(pkg)
         
         '''# DEBUG ONLY
         print("Prior to sorting by group frequency")
@@ -217,7 +217,7 @@ class PackageHandler:
         # Sort the return_list is place by group attribute frequency.    
         for group in return_list:
             # Build a list of all of the group attribute values in the group
-            group_attr_vals = [package.group for package in group if package.group is not None]
+            group_attr_vals = [pkg.group for pkg in group if pkg.group is not None]
             
             # A list of tuples: (group_attr_vals, and the frequency of the group_attr_vals)
             group_attr_and_freq = []
@@ -247,9 +247,9 @@ class PackageHandler:
                 return 0
         
             group.sort(
-                key=lambda package: (
-                    -get_frequency(package.group),  # First: frequency (descending)
-                    package.group if package.group is not None else float('inf')  # Second: group number
+                key=lambda pkg: (
+                    -get_frequency(pkg.group),  # First: frequency (descending)
+                    pkg.group if pkg.group is not None else float('inf')  # Second: group number
                 )
 
             )
@@ -269,28 +269,28 @@ def list_builder(attr=None, ex_attr=None, ex_val=None):
     
     # Abbreviated variables to improve readability with the attr method.
     for bucket in warehouse_hash:
-        for package in bucket:
+        for pkg in bucket:
             if attr is None:
-                package_list.append(package)
+                package_list.append(pkg)
             else:
-                #print(f"Checking package: {package}") # DEBUG ONLY
-                attr_val = getattr(package, attr, None)
-                ex_attr_val = getattr(package, ex_attr, None) if ex_attr is not None else None
+                #print(f"Checking package: {pkg}") # DEBUG ONLY
+                attr_val = getattr(pkg, attr, None)
+                ex_attr_val = getattr(pkg, ex_attr, None) if ex_attr is not None else None
                 
                 #print(f"attr_val: {attr_val}, ex_attr_val: {ex_attr_val}") # DEBUG ONLY
                 
                 if attr_val is not None:
                     # If no exclusion attribute, or exclusion passes
                     if ex_attr_val is None:
-                        package_list.append(package)
+                        package_list.append(pkg)
                     else:
                         # Handle if ex_attr_val is a list
                         if isinstance(ex_attr_val, list):
                             if ex_val not in ex_attr_val:
-                                package_list.append(package)
+                                package_list.append(pkg)
                         else:
                             if ex_attr_val != ex_val:
-                                package_list.append(package)
+                                package_list.append(pkg)
 
     return sorted(package_list)
 
@@ -300,9 +300,9 @@ def anti_list_builder(package_list=[]):
     anti_list = []
     
     for bucket in warehouse_hash:
-        for package in bucket:
-            if package not in package_list:
-                anti_list.append(package)
+        for pkg in bucket:
+            if pkg not in package_list:
+                anti_list.append(pkg)
     
     return sorted(anti_list)
     
