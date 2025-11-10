@@ -547,6 +547,71 @@ def test_handle_with_package_note_is_idempotent(sample_w_notes):
     assert packages[4].group == 2
     assert packages[0].group == 2
 
+def test_add_and_prioritize_remaining_packages_sets_special_note_none_to_4(patch_get_warehouse_hash):
+    remaining_packages = []
+    handler = ph.PackageHandler()
+    handler.add_and_prioritize_remaining_packages(remaining_packages)
+    ids = [pkg.package_id for pkg in remaining_packages if pkg.priority == 4]
+    for pkg in remaining_packages:
+        if not pkg.special_note:
+            assert pkg.priority == 4
+
+def test_add_and_prioritize_remaining_packages_sets_special_note_to_5(patch_get_warehouse_hash):
+    remaining_packages = []
+    handler = ph.PackageHandler()
+    handler.add_and_prioritize_remaining_packages(remaining_packages)
+    ids = [pkg.package_id for pkg in remaining_packages if pkg.priority == 5]
+    for pkg in remaining_packages:
+        if pkg.special_note:
+            assert pkg.priority == 5
+
+def test_add_and_prioritize_remaining_packages_overwrites_priority_value(patch_get_warehouse_hash):
+    for pkg in patch_get_warehouse_hash:
+        pkg.priority = -1
+    remaining_packages = []
+    handler = ph.PackageHandler()
+    handler.add_and_prioritize_remaining_packages(remaining_packages)
+    ids = [pkg.package_id for pkg in remaining_packages if pkg.priority != -1]
+    for pkg in remaining_packages:
+        assert pkg.priority != -1
+        assert pkg.priority == 4 or pkg.priority == 5
+
+def test_add_and_prioritize_remaining_packages_all_packages_in_warehouse_in_package_list(patch_get_warehouse_hash):
+    remaining_packages = patch_get_warehouse_hash[4:]
+    handler = ph.PackageHandler()
+    handler.add_and_prioritize_remaining_packages(remaining_packages)
+    ids = [pkg.package_id for pkg in remaining_packages]
+    for pkg in patch_get_warehouse_hash:
+        assert pkg.package_id in ids
+    assert len(remaining_packages) == len(patch_get_warehouse_hash)
+
+def test_add_and_prioritize_remaining_packages_raises_on_duplicate_packages(patch_get_warehouse_hash):
+    remaining_packages = list(patch_get_warehouse_hash)
+    remaining_packages.append(patch_get_warehouse_hash[0])
+    assert len(set(remaining_packages)) != len(remaining_packages)
+    handler = ph.PackageHandler()
+    with pytest.raises(Exception):
+        handler.add_and_prioritize_remaining_packages(remaining_packages)
+
+def test_add_and_prioritize_does_not_mutate_existing_items(patch_get_warehouse_hash):
+    handler = ph.PackageHandler()
+    existing = [patch_get_warehouse_hash[0]]
+    existing[0].priority = 99
+    handler.add_and_prioritize_remaining_packages(existing)
+    assert existing[0].priority == 99
+
+def test_add_and_prioritize_remaining_packages_is_idempotent_when_called_twice(patch_get_warehouse_hash):
+    packages = []
+    handler = ph.PackageHandler()
+    handler.add_and_prioritize_remaining_packages(packages)
+    snapshot_ids = [p.package_id for p in packages]
+    snapshot_priorities = [p.priority for p in packages]
+    assert len(packages) == len(patch_get_warehouse_hash)
+    handler.add_and_prioritize_remaining_packages(packages)
+    assert [p.package_id for p in packages] == snapshot_ids
+    assert [p.priority for p in packages] == snapshot_priorities
+    assert len(packages) == len(patch_get_warehouse_hash)
+
 def test_list_builder_returns_all_packages(patch_get_warehouse_hash):
     result = ph.list_builder()
     package_ids = [p.package_id for p in result]

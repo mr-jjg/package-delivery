@@ -188,15 +188,20 @@ class PackageHandler:
     def add_and_prioritize_remaining_packages(self, package_list):
         warehouse_hash = get_warehouse_hash()
         
+        seen_ids = set()
+        dup_ids = set()
+        for pkg in package_list:
+            dup_ids.add(pkg.package_id) if pkg.package_id in seen_ids else seen_ids.add(pkg.package_id)
+        if dup_ids:
+            raise ValueError(f"Duplicate packages in input package_list: {sorted(dup_ids)}")
+
         remaining_list = anti_list_builder(package_list)
+        if not remaining_list:
+            return
         
         for pkg in remaining_list:
-            if pkg.special_note is None:
-                pkg.priority = 4
-                package_list.append(pkg)
-            else:
-                pkg.priority = 5
-                package_list.append(pkg)
+            pkg.priority = 4 if pkg.special_note is None else 5
+            package_list.append(pkg)
         
     
     def group_and_sort_list(self, unsorted_list):
