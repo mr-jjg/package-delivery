@@ -142,12 +142,15 @@ class PackageHandler:
         # Compare each set with each other set for intersections and merge until only disjoint sets remain.
         disjoint_sets = merge_sets(set_list)
         
-        # Build the result_groups_list from out disjoint sets, so that the priorities can be set and associated on the constraints_list.
+        # Build the result_groups_list from our disjoint sets, so that the priorities can be set and associated on the constraints_list.
         result_groups_list = []
         for id_sets in disjoint_sets:
             group_list = []
             for id in id_sets:
-                group_list.append(warehouse_hash.search(id))
+                pkg = warehouse_hash.search(id)
+                if not pkg:
+                    raise ValueError(f"Package with id {id} not in warehouse!")
+                group_list.append(pkg)
             result_groups_list.append(group_list)
         
         '''# DEBUG ONLY
@@ -167,6 +170,8 @@ class PackageHandler:
                 #hashed_package = hash_table.search(package.package_id)
                 if package.priority is not None:
                     min_priority = min(min_priority, package.priority)
+                else:
+                    min_priority = 4
                 
                 # We're adding to the package list so that this can be returned and update the constraints list.
                 if package not in package_list:

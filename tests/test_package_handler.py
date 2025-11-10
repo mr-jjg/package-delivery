@@ -408,6 +408,145 @@ def test_handle_delayed_without_deadline_note_is_idempotent():
         handler.handle_delayed_without_deadline_note([pkg], fl)
         assert pkg.truck == 0
 
+@pytest.fixture
+def sample_w_notes(monkeypatch):
+    table = hash_table.HashTable(size=8)
+    packages = [
+        package.Package(1, "123 Maple Street", "Springfield", "IL", 62701, "1:00 PM", 2.5, "D, 10:30 AM"),
+        package.Package(2, "456 Oak Avenue", "Chicago", "IL", 60614, "12:00 PM", 5.0, None),
+        package.Package(3, "789 Pine Road", "Naperville", "IL", 60540, "EOD", 1.2, "W, 7"),
+        package.Package(4, "321 Birch Lane", "Peoria", "IL", 61602, "EOD", 3.3, "D, 9:30 AM"),
+        package.Package(5, "654 Cedar Street", "Champaign", "IL", 61820, "4:00 PM", 4.8, "W, 1, 2"),
+        package.Package(6, "987 Yew Boulevard", "Rockford", "IL", 61020, "EOD", 4.8, "W, 2"),
+        package.Package(7, "123 Maple Street", "Springfield", "IL", 62701, "11:00 AM", 2.5, "W, 3"),
+        package.Package(8, "456 Oak Avenue", "Chicago", "IL", 60614, "12:00 AM", 5.0, "W, 4")
+    ]
+    for pkg in packages:
+        pkg.special_note = pkg.parse_special_note()
+        table.insert(pkg.package_id, pkg)
+    handler = ph.PackageHandler()
+    handler.set_package_priorities(packages)
+    monkeypatch.setattr(ph, "get_warehouse_hash", lambda: table)
+    return packages
+
+def test_handle_with_package_note_sets_correct_group(sample_w_notes):
+    handler = ph.PackageHandler()
+    packages = handler.handle_with_package_note(sample_w_notes)
+    assert packages[7].group == 0
+    assert packages[3].group == 0
+    assert packages[6].group == 1
+    assert packages[2].group == 1
+    assert packages[5].group == 2
+    assert packages[1].group == 2
+    assert packages[4].group == 2
+    assert packages[0].group == 2
+
+def test_handle_with_package_note_sets_correct_priority(sample_w_notes):
+    handler = ph.PackageHandler()
+    packages = handler.handle_with_package_note(sample_w_notes)
+    assert packages[7].priority == 1
+    assert packages[3].priority == 1
+    assert packages[6].priority == 1
+    assert packages[2].priority == 1
+    assert packages[5].priority == 0
+    assert packages[1].priority == 0
+    assert packages[4].priority == 0
+    assert packages[0].priority == 0
+
+def test_handle_with_package_note_unknown_id_raises(monkeypatch):
+    pkg = package.Package(1, "123 Maple Street", "Springfield", "IL", 62701, "EOD", 2.5, ["W", 9999])
+    table = hash_table.HashTable(size=1)
+    monkeypatch.setattr(ph, "get_warehouse_hash", lambda: table)
+    table.insert(pkg.package_id, pkg)
+    handler = ph.PackageHandler()
+    with pytest.raises(ValueError):
+        packages = handler.handle_with_package_note([pkg])
+
+def test_handle_with_package_note_none_packages_set_to_priority_4(sample_w_notes):
+    for package in sample_w_notes:
+        package.priority = None
+    handler = ph.PackageHandler()
+    packages = handler.handle_with_package_note(sample_w_notes)
+    for pkg in packages:
+        assert pkg.priority == 4
+
+def test_handle_with_package_note_adds_package_not_in_list(monkeypatch):
+    monkeypatch.setattr(ph, "get_warehouse_hash", lambda: table)
+    pkg = package.Package(1, "123 Maple Street", "Springfield", "IL", 62701, "EOD", 2.5, ["W", 2])
+    missing = package.Package(2, "456 Oak Avenue", "Chicago", "IL", 60614, "12:00 PM", 5.0, None)
+    table = hash_table.HashTable(size=2)
+    table.insert(pkg.package_id, pkg)
+    table.insert(missing.package_id, missing)
+    handler = ph.PackageHandler()
+    packages = handler.handle_with_package_note([pkg])
+    ids = [p.package_id for p in packages]
+    assert set(ids) == {1, 2}
+    assert len(ids) == len(set(ids))
+
+@pytest.mark.parametrize(
+    "id, addr, city, state, zip_code, delivery_deadline, weight, special_note",
+    [
+        (1, "123 Maple Street", "Springfield", "IL", 62701, datetime.time(13, 0), 2.5, ["W", 9]),
+        (2, "456 Oak Avenue", "Chicago", "IL", 60614, datetime.time(12, 0), 5.0, ["W", 9]),
+        (3, "789 Pine Road", "Naperville", "IL", 60540, package.Package.EOD_TIME, 1.2, ["W", 9]),
+        (4, "321 Birch Lane", "Peoria", "IL", 61602, package.Package.EOD_TIME, 3.3, ["W", 9]),
+        (5, "654 Cedar Street", "Champaign", "IL", 61820, datetime.time(16, 0), 4.8, ["W", 9]),
+        (6, "987 Yew Boulevard", "Rockford", "IL", 61020, package.Package.EOD_TIME, 4.8, ["W", 9]),
+        (7, "123 Maple Street", "Springfield", "IL", 62701, datetime.time(11, 0), 2.5, ["W", 9]),
+        (8, "456 Oak Avenue", "Chicago", "IL", 60614, datetime.time(0, 0), 5.0, ["W", 9])
+    ]
+)
+def test_handle_with_package_note_only_modifies_group_and_priority(id, addr, city, state, zip_code, delivery_deadline, weight, special_note, monkeypatch):
+    pkg9 = package.Package(9, "0", "0", "0", 0, datetime.time(13,0), 2.5, None)
+    pkg = package.Package(id, addr, city, state, zip_code, delivery_deadline, weight, special_note)
+    table = hash_table.HashTable(size=2)
+    monkeypatch.setattr(ph, "get_warehouse_hash", lambda: table)
+    pkg.special_note = pkg.parse_special_note()
+    table.insert(pkg9.package_id, pkg9)
+    table.insert(pkg.package_id, pkg)
+    handler = ph.PackageHandler()
+    before = (pkg.package_id, pkg.address, pkg.city, pkg.state, pkg.zip_code, pkg.delivery_deadline, pkg.weight_kilo, pkg.special_note, pkg.delivery_status, pkg.time_of_delivery, pkg.truck is None)
+    packages = handler.handle_with_package_note([pkg])
+    after = (pkg.package_id, pkg.address, pkg.city, pkg.state, pkg.zip_code, pkg.delivery_deadline, pkg.weight_kilo, pkg.special_note, pkg.delivery_status, pkg.time_of_delivery, pkg.truck is None)
+    assert before == after
+
+def test_handle_with_package_note_is_idempotent(sample_w_notes):
+    handler = ph.PackageHandler()
+    packages = handler.handle_with_package_note(sample_w_notes)
+    assert packages[7].priority == 1
+    assert packages[3].priority == 1
+    assert packages[6].priority == 1
+    assert packages[2].priority == 1
+    assert packages[5].priority == 0
+    assert packages[1].priority == 0
+    assert packages[4].priority == 0
+    assert packages[0].priority == 0
+    assert packages[7].group == 0
+    assert packages[3].group == 0
+    assert packages[6].group == 1
+    assert packages[2].group == 1
+    assert packages[5].group == 2
+    assert packages[1].group == 2
+    assert packages[4].group == 2
+    assert packages[0].group == 2
+    packages = handler.handle_with_package_note(sample_w_notes)
+    assert packages[7].priority == 1
+    assert packages[3].priority == 1
+    assert packages[6].priority == 1
+    assert packages[2].priority == 1
+    assert packages[5].priority == 0
+    assert packages[1].priority == 0
+    assert packages[4].priority == 0
+    assert packages[0].priority == 0
+    assert packages[7].group == 0
+    assert packages[3].group == 0
+    assert packages[6].group == 1
+    assert packages[2].group == 1
+    assert packages[5].group == 2
+    assert packages[1].group == 2
+    assert packages[4].group == 2
+    assert packages[0].group == 2
+
 def test_list_builder_returns_all_packages(patch_get_warehouse_hash):
     result = ph.list_builder()
     package_ids = [p.package_id for p in result]
