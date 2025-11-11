@@ -210,7 +210,7 @@ class PackageHandler:
         # Group packages by priority
         for pkg in unsorted_list:
             #print(f"  Priority: {pkg.priority}", end=", ") # DEBUG ONLY
-            if 0 <= pkg.priority <= 5:
+            if isinstance(pkg.priority, int) and 0 <= pkg.priority <= 5:
                 #print(f"adding to group {pkg.priority}") # DEBUG ONLY
                 return_list[pkg.priority].append(pkg)
         

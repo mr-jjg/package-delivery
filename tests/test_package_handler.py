@@ -43,7 +43,7 @@ def patch_get_warehouse_hash(monkeypatch, sample_table):
     table, packages = sample_table
     monkeypatch.setattr(ph, "get_warehouse_hash", lambda: table)
     return packages
-    
+
 def snapshot(packages):
     return [(p.package_id, p.address, p.delivery_deadline, p.special_note) for p in packages]
 
@@ -105,7 +105,7 @@ def test_merge_addresses_is_idempotent_on_second_call(patch_get_warehouse_hash):
     handler.merge_addresses()
     after = snapshot(patch_get_warehouse_hash)
     assert before == after
-    
+
 def test_build_constraints_list_baseline_union(warehouse_reset):
     # Order via Package.__lt__ -> package_id
     table = hash_table.HashTable(size=5)
@@ -201,7 +201,7 @@ def test_build_constraints_list_does_not_mutate(patch_get_warehouse_hash):
     assert constraints_list[0].state == "IL"
     assert constraints_list[0].zip_code == 62701
     assert constraints_list[0].delivery_deadline == time(10, 0)
-    
+
 @pytest.mark.parametrize(
     "expected, deadline, note",
     [
@@ -232,7 +232,7 @@ def test_set_package_priorities_single(expected, deadline, note):
     assert pkg.delivery_deadline == deadline
     assert pkg.special_note == note
     assert pkg.priority == expected
-    
+
 def test_set_package_priorities_multiple():
     handler = ph.PackageHandler()
     packages = [
@@ -244,7 +244,7 @@ def test_set_package_priorities_multiple():
     handler.set_package_priorities(packages)
     priorities = [p.priority for p in packages]
     assert priorities == [0, 1, 2, 3]
-    
+
 def test_note_lowercase_d_is_not_delayed():
     handler = ph.PackageHandler()
     pkg1 = make_pkg(1, datetime.time(9, 0), ['d', datetime.time(13, 0)])
@@ -347,7 +347,7 @@ def test_handle_delayed_without_deadline_note_handles_packages_without_deadlines
     handler = ph.PackageHandler()
     handler.handle_delayed_without_deadline_note(sample_special_notes, fl)
     assert sample_special_notes[3].truck is 0
-    
+
 def test_handle_delayed_without_deadline_note_adds_to_first_empty_truck(sample_special_notes):
     fl = fleet.Fleet(4)
     fl.truck_list[0].driver = "William"
@@ -612,6 +612,203 @@ def test_add_and_prioritize_remaining_packages_is_idempotent_when_called_twice(p
     assert [p.priority for p in packages] == snapshot_priorities
     assert len(packages) == len(patch_get_warehouse_hash)
 
+@pytest.fixture
+def sample_unsorted_list(monkeypatch):
+    table = hash_table.HashTable(size=8)
+    packages = [
+        package.Package(1, "195 W Oakland Ave", "Salt Lake City", "UT", 84115, datetime.time(10, 30), 21, None),
+        package.Package(2, "2530 S 500 E", "Salt Lake City", "UT", 84106, package.Package.EOD_TIME, 44, None),
+        package.Package(3, "233 Canyon Rd", "Salt Lake City", "UT", 84103, package.Package.EOD_TIME, 2, "T, 2"),
+        package.Package(4, "380 W 2880 S", "Salt Lake City", "UT", 84115, package.Package.EOD_TIME, 4, None),
+        package.Package(5, "410 S State St", "Salt Lake City", "UT", 84111, package.Package.EOD_TIME, 5, None),
+        package.Package(6, "3060 Lester St", "West Valley City", "UT", 84119, datetime.time(10, 30), 88, "D, 9:05 am"),
+        package.Package(7, "1330 2100 S", "Salt Lake City", "UT", 84106, package.Package.EOD_TIME, 8, None),
+        package.Package(8, "300 State St", "Salt Lake City", "UT", 84103, package.Package.EOD_TIME, 9, None),
+        package.Package(9, "300 State St", "Salt Lake City", "UT", 84103, package.Package.EOD_TIME, 2, "X, 10:20 am, 410 S State St, Salt Lake City, UT, 84111"),
+        package.Package(10, "600 E 900 South", "Salt Lake City", "UT", 84105, package.Package.EOD_TIME, 1, None),
+        package.Package(11, "2600 Taylorsville Blvd", "Salt Lake City", "UT", 84118, package.Package.EOD_TIME, 1, None),
+        package.Package(12, "3575 W Valley Central Station bus Loop", "West Valley City", "UT", 84119, package.Package.EOD_TIME, 1, None),
+        package.Package(13, "2010 W 500 S", "Salt Lake City", "UT", 84104, datetime.time(10, 30), 2, None),
+        package.Package(14, "4300 S 1300 E", "Millcreek", "UT", 84117, datetime.time(10, 30), 88, "W, 15, 19"),
+        package.Package(15, "4580 S 2300 E", "Holladay", "UT", 84117, datetime.time(9, 0), 4, None),
+        package.Package(16, "4580 S 2300 E", "Holladay", "UT", 84117, datetime.time(10, 30), 88, "W, 13, 19"),
+        package.Package(17, "3148 S 1100 W", "Salt Lake City", "UT", 84119, package.Package.EOD_TIME, 2, None),
+        package.Package(18, "1488 4800 S", "Salt Lake City", "UT", 84123, package.Package.EOD_TIME, 6, "T, 2"),
+        package.Package(19, "177 W Price Ave", "Salt Lake City", "UT", 84115, package.Package.EOD_TIME, 37, None),
+        package.Package(20, "3595 Main St", "Salt Lake City", "UT", 84115, datetime.time(10, 30), 37, "W, 13, 15"),
+    ]
+    for pkg in packages:
+        pkg.special_note = pkg.parse_special_note()
+        table.insert(pkg.package_id, pkg)
+    handler = ph.PackageHandler()
+    handler.merge_addresses()
+    constraints_list = handler.build_constraints_list()
+    handler.set_package_priorities(constraints_list)
+    handler.handle_with_truck_note(constraints_list)
+    fl = fleet.Fleet(2)
+    handler.handle_delayed_without_deadline_note(constraints_list, fl)
+    constraints_list = handler.handle_with_package_note(constraints_list)
+    handler.add_and_prioritize_remaining_packages(constraints_list)
+    monkeypatch.setattr(ph, "get_warehouse_hash", lambda: table)
+    return constraints_list
+
+def test_group_and_sort_list_creates_six_priority_groups(sample_unsorted_list):
+    handler = ph.PackageHandler()
+    ready_list = handler.group_and_sort_list(sample_unsorted_list)
+    assert len(ready_list) == 6
+
+def test_group_and_sort_list_ignores_packages_with_invalid_priority(sample_unsorted_list):
+    invalid_priorities_list = sample_unsorted_list
+    for pkg in invalid_priorities_list[:10]:
+        pkg.priority = -1
+    for pkg in invalid_priorities_list[10:]:
+        pkg.priority = 6
+    handler = ph.PackageHandler()
+    ready_list = handler.group_and_sort_list(sample_unsorted_list)
+    assert ready_list == [[] for i in range(6)]
+
+@pytest.mark.parametrize(
+    "priority, expected_index",
+    [
+        (0, 0),
+        (1, 1),
+        (2, 2),
+        (3, 3),
+        (4, 4),
+        (5, 5)
+    ]
+)
+def test_group_and_sort_list_places_packages_into_correct_priority_lists(priority, expected_index, sample_unsorted_list):
+    for pkg in sample_unsorted_list:
+        pkg.priority = priority
+    handler = ph.PackageHandler()
+    ready_list = handler.group_and_sort_list(sample_unsorted_list)
+    assert len(ready_list[expected_index]) == len(sample_unsorted_list)
+
+def test_group_and_sort_list_sorts_by_group_number_ascending(monkeypatch):
+    table = hash_table.HashTable(size=8)
+    monkeypatch.setattr(ph, "get_warehouse_hash", lambda: table)
+    packages = [
+        package.Package(1, "195 W Oakland Ave", "Salt Lake City", "UT", 84115, datetime.time(10, 30), 21, None),
+        package.Package(2, "2530 S 500 E", "Salt Lake City", "UT", 84106, package.Package.EOD_TIME, 44, None),
+        package.Package(3, "233 Canyon Rd", "Salt Lake City", "UT", 84103, package.Package.EOD_TIME, 2, "T, 2"),
+        package.Package(4, "380 W 2880 S", "Salt Lake City", "UT", 84115, package.Package.EOD_TIME, 4, None),
+        package.Package(5, "410 S State St", "Salt Lake City", "UT", 84111, package.Package.EOD_TIME, 5, None),
+        package.Package(6, "3060 Lester St", "West Valley City", "UT", 84119, datetime.time(10, 30), 88, "D, 9:05 am"),
+    ]
+    for i, pkg in enumerate(packages):
+        pkg.group = i
+        pkg.priority = 0
+    handler = ph.PackageHandler()
+    ready_list = handler.group_and_sort_list(packages)[0]
+    for i, curr_pkg in enumerate(ready_list[:-1]):
+        next_pkg = ready_list[i+1]
+        assert curr_pkg.group < next_pkg.group
+
+def test_group_and_sort_list_sorts_by_group_number_when_frequencies_equal(monkeypatch):
+    table = hash_table.HashTable(size=8)
+    monkeypatch.setattr(ph, "get_warehouse_hash", lambda: table)
+    packages = [
+        package.Package(1, "195 W Oakland Ave", "Salt Lake City", "UT", 84115, datetime.time(10, 30), 21, None),
+        package.Package(2, "2530 S 500 E", "Salt Lake City", "UT", 84106, package.Package.EOD_TIME, 44, None),
+        package.Package(3, "233 Canyon Rd", "Salt Lake City", "UT", 84103, package.Package.EOD_TIME, 2, "T, 2"),
+        package.Package(4, "380 W 2880 S", "Salt Lake City", "UT", 84115, package.Package.EOD_TIME, 4, None),
+        package.Package(5, "410 S State St", "Salt Lake City", "UT", 84111, package.Package.EOD_TIME, 5, None),
+        package.Package(6, "3060 Lester St", "West Valley City", "UT", 84119, datetime.time(10, 30), 88, "D, 9:05 am"),
+    ]
+    groups = [3, 1, 3, 1, None, None]
+    for pkg, grp in zip(packages, groups):
+        pkg.group = grp
+        pkg.priority = 0
+    handler = ph.PackageHandler()
+    ready_list = handler.group_and_sort_list(packages)[0]
+    group = [pkg.group for pkg in ready_list]
+    assert group[:2] == [1, 1]
+    assert group[2:4] == [3, 3]
+    assert all(g is None for g in group[4:])
+
+def test_group_and_sort_list_handles_none_group_values_last(monkeypatch):
+    table = hash_table.HashTable(size=8)
+    monkeypatch.setattr(ph, "get_warehouse_hash", lambda: table)
+    packages = [
+        package.Package(1, "195 W Oakland Ave", "Salt Lake City", "UT", 84115, datetime.time(10, 30), 21, None),
+        package.Package(2, "2530 S 500 E", "Salt Lake City", "UT", 84106, package.Package.EOD_TIME, 44, None),
+        package.Package(3, "233 Canyon Rd", "Salt Lake City", "UT", 84103, package.Package.EOD_TIME, 2, "T, 2"),
+        package.Package(4, "380 W 2880 S", "Salt Lake City", "UT", 84115, package.Package.EOD_TIME, 4, None),
+        package.Package(5, "410 S State St", "Salt Lake City", "UT", 84111, package.Package.EOD_TIME, 5, None),
+        package.Package(6, "3060 Lester St", "West Valley City", "UT", 84119, datetime.time(10, 30), 88, "D, 9:05 am"),
+    ]
+    for pkg in packages[:]:
+        pkg.group = None
+        pkg.priority = 0
+    packages[-1].group = 1
+    handler = ph.PackageHandler()
+    ready_list = handler.group_and_sort_list(packages)[0]
+    assert ready_list[0].group is not None
+    for pkg in ready_list[1:]:
+        assert pkg.group is None
+
+@pytest.mark.parametrize(
+    "priority, expected_index",
+    [
+        (0, 0),
+        (1, 1),
+        (2, 2),
+        (3, 3),
+        (4, 4),
+        (5, 5)
+    ]
+)
+def test_group_and_sort_list_returns_empty_groups_when_no_packages_in_priority(priority, expected_index, sample_unsorted_list):
+    for pkg in sample_unsorted_list:
+        pkg.priority = priority
+    handler = ph.PackageHandler()
+    ready_list = handler.group_and_sort_list(sample_unsorted_list)
+    ready_list.pop(expected_index)
+    for group in ready_list:
+        assert group == []
+
+def test_group_and_sort_list_returns_empty_lists_for_empty_input(monkeypatch):
+    table = hash_table.HashTable(size=8)
+    monkeypatch.setattr(ph, "get_warehouse_hash", lambda: table)
+    packages = []
+    handler = ph.PackageHandler()
+    ready_list = handler.group_and_sort_list(packages)
+    assert len(ready_list) == 6
+    assert all (group == [] for group in ready_list)
+
+def test_group_and_sort_list_does_not_mutate_original_list(sample_unsorted_list):
+    handler = ph.PackageHandler()
+    before_ids = [pkg.package_id for pkg in sample_unsorted_list]
+    before_objs = list(sample_unsorted_list)
+    ready_list = handler.group_and_sort_list(sample_unsorted_list)
+    after_ids = [pkg.package_id for pkg in sample_unsorted_list]
+    after_objs = list(sample_unsorted_list)
+    assert before_ids == after_ids
+    assert before_objs == after_objs
+
+def test_group_and_sort_list_handles_duplicate_group_numbers_correctly(monkeypatch):
+    table = hash_table.HashTable(size=8)
+    monkeypatch.setattr(ph, "get_warehouse_hash", lambda: table)
+    packages = [
+        package.Package(1, "195 W Oakland Ave", "Salt Lake City", "UT", 84115, datetime.time(10, 30), 21, None),
+        package.Package(2, "2530 S 500 E", "Salt Lake City", "UT", 84106, package.Package.EOD_TIME, 44, None),
+        package.Package(3, "233 Canyon Rd", "Salt Lake City", "UT", 84103, package.Package.EOD_TIME, 2, "T, 2"),
+        package.Package(4, "380 W 2880 S", "Salt Lake City", "UT", 84115, package.Package.EOD_TIME, 4, None),
+        package.Package(5, "410 S State St", "Salt Lake City", "UT", 84111, package.Package.EOD_TIME, 5, None),
+        package.Package(6, "3060 Lester St", "West Valley City", "UT", 84119, datetime.time(10, 30), 88, "D, 9:05 am"),
+    ]
+    groups = [2, 1, 2, 1, 2, None]
+    for pkg, grp in zip(packages, groups):
+        pkg.group = grp
+        pkg.priority = 0
+    handler = ph.PackageHandler()
+    ready_list = handler.group_and_sort_list(packages)[0]
+    group = [pkg.group for pkg in ready_list]
+    assert group[:3] == [2, 2, 2]
+    assert group[3:5] == [1, 1]
+    assert group[5] is None
+
 def test_list_builder_returns_all_packages(patch_get_warehouse_hash):
     result = ph.list_builder()
     package_ids = [p.package_id for p in result]
@@ -623,25 +820,25 @@ def test_list_builder_returns_only_with_attributes(patch_get_warehouse_hash):
     package_ids = [p.package_id for p in result]
     assert set(package_ids) == {1, 3, 4, 5}
     assert len(package_ids) == 4
-    
+
 def test_list_builder_excludes_values(patch_get_warehouse_hash):
     result = ph.list_builder('delivery_deadline', 'delivery_deadline', package.Package.EOD_TIME)
     package_ids = [p.package_id for p in result]
     assert set(package_ids) == {1, 4, 5, 6, 7, 8}
     assert len(package_ids) == 6
-    
+
 def test_list_builder_excludes_values_in_list(patch_get_warehouse_hash):
     result = ph.list_builder('special_note', 'special_note', 'W')
     package_ids = [p.package_id for p in result]
     assert set(package_ids) == {1, 3, 4}
     assert len(package_ids) == 3
-    
+
 def test_list_builder_uses_identity_semantics(patch_get_warehouse_hash):
     packages = patch_get_warehouse_hash
     same_packages = ph.list_builder()
     for i in range(len(packages)):
         assert packages[i] is same_packages[i]
-    
+
 def test_list_builder_empty(monkeypatch):
     monkeypatch.setattr(ph, "get_warehouse_hash", lambda: [])
     assert ph.list_builder() == []    
@@ -662,7 +859,6 @@ def test_anti_list_builder_returns_all(patch_get_warehouse_hash):
     assert len(anti_package_list) == len(result)
     for i in range(len(anti_package_list)):
         assert anti_package_list[i].package_id == result[i].package_id
-    
 
 def test_anti_list_builder_returns_none(patch_get_warehouse_hash):
     packages = patch_get_warehouse_hash
@@ -714,7 +910,7 @@ def test_perform_union_on_lists_removes_duplicates(lists, results):
     test_result = ph.perform_union_on_lists(list_a, list_b)
     assert test_result == results
     assert isinstance(test_result, list)
-    
+
 def test_perform_union_on_lists_returns_sorted():
     list_a = [2, 3, 1]
     list_b = [0]
