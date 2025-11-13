@@ -1,0 +1,89 @@
+# /tests/test_package_loader.py
+# Test for shape, state changes, branching/conditions, interactions
+
+import pytest
+import package
+import package_loader as pl
+
+def make_pkg(id_, group=None, priority=None):
+    return package.Package(id_, "Address", "City", "ST", 99999, None, 1.0, None, "at_the_hub", None, None, group, priority)
+
+class TestHelpers:
+    def test_build_working_package_list_happy_path(self):
+        package_groups = [
+            [
+                make_pkg(1, 2, 0), 
+                make_pkg(2, 2, 0), 
+                make_pkg(3, 1, 0), 
+                make_pkg(4, None, 0)
+            ]
+        ]
+        wpl = pl.build_working_package_list(package_groups)
+        ids = [pkg.package_id for pkg in wpl]
+        assert ids == [1, 2]
+
+    def test_build_working_package_list_first_group_emptied_and_popped(self):
+        package_groups = [
+            [
+                make_pkg(1, 3, 1), 
+                make_pkg(2, 3, 1), 
+                make_pkg(3, 3, 1)
+            ],
+            [
+                make_pkg(4, 4, 2)
+            ]
+        ]
+        second = package_groups[1]
+        wpl = pl.build_working_package_list(package_groups)
+        ids = [pkg.package_id for pkg in wpl]
+        assert ids == [1, 2, 3]
+        assert package_groups == [second]
+
+    def test_build_working_package_list_no_group_priority_not_zero(self):
+        package_groups = [
+            [
+                make_pkg(1, None, 2), 
+                make_pkg(2, 4, 2), 
+                make_pkg(3, 5, 2)
+            ]
+        ]
+        len_before = len(package_groups)
+        expected = package_groups[0][1:]
+        wpl = pl.build_working_package_list(package_groups)
+        len_after = len(package_groups)
+        ids = [pkg.package_id for pkg in wpl]
+        assert ids == [1]
+        assert len_before == len_after
+        assert package_groups[0] == expected
+        
+    def test_build_working_package_list_no_group_priority_zero(self):
+        package_groups = [
+            [
+                make_pkg(1, None, 0), 
+                make_pkg(2, None, 0), 
+                make_pkg(3, None, 0), 
+                make_pkg(4, 1, 0)
+            ]
+        ]
+        wpl = pl.build_working_package_list(package_groups)
+        ids = [pkg.package_id for pkg in wpl]
+        assert [pkg.package_id for pkg in package_groups[0]] == [4]
+        for pkg in wpl:
+            assert pkg.group is None
+'''
+    def test_get_trucks_with_available_capacity():
+        
+    def test_has_w_note():
+        
+    def test_remove_empty_groups():
+        
+    def test_load_optimal_truck():
+        
+    def test_print_loading_packages():
+
+class TestLoadAssignedTrucks:
+    
+class TestLoadEmptyTrucksWithDrivers:
+
+class TestLoadPackages:
+'''
