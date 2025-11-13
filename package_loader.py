@@ -18,17 +18,17 @@ class PackageLoader:
         warehouse_hash = get_warehouse_hash()
         
         for i, group in enumerate(package_groups):
-            for package in group[:]:
-                truck_to_load = package.truck
+            for pkg in group[:]:
+                truck_to_load = pkg.truck
                 if (
                     truck_to_load is not None
                     and 0 <= truck_to_load < len(fleet.truck_list)
                 ):
                     truck = fleet.truck_list[truck_to_load]
-                    self.vprint(f"  -LOADING Package {package.package_id} ONTO Truck {truck.truck_id + 1}", verbosity)
-                    truck.package_list.append(package)
+                    self.vprint(f"  -LOADING Package {pkg.package_id} ONTO Truck {truck.truck_id + 1}", verbosity)
+                    truck.package_list.append(pkg)
                     truck.current_capacity -= 1
-                    package_groups[i].remove(package)
+                    package_groups[i].remove(pkg)
                     
         remove_empty_groups(package_groups)
         
@@ -59,9 +59,9 @@ class PackageLoader:
                 working_package_list = split_package_list(empty_truck, package_groups, working_package_list)
                 
             # Now add each package in the working_package_list to the empty_truck.
-            for package in working_package_list:
-                package.empty_truck = empty_truck.truck_id
-                empty_truck.package_list.append(package)
+            for pkg in working_package_list:
+                pkg.empty_truck = empty_truck.truck_id
+                empty_truck.package_list.append(pkg)
                 empty_truck.current_capacity -= 1
             
             print_loading_packages(empty_truck, working_package_list, verbosity)
@@ -196,10 +196,10 @@ def build_working_package_list(package_groups):
     
     # Add packages that share those attributes to the working package list.
     if highest_group is not None or highest_priority == 0:
-        for package in package_groups[0][:]:
-            if package.group == highest_group and package.priority == highest_priority:
-                working_package_list.append(package)
-                package_groups[0].remove(package)
+        for pkg in package_groups[0][:]:
+            if pkg.group == highest_group and pkg.priority == highest_priority:
+                working_package_list.append(pkg)
+                package_groups[0].remove(pkg)
     else: # Handle packages with no group individually.
         working_package_list.append(zero_package)
         package_groups[0].remove(zero_package)
@@ -222,8 +222,8 @@ def get_trucks_with_available_capacity(truck_list, package_list):
     
 
 def has_w_note(package_list):
-    for package in package_list:
-        if package.special_note and package.special_note[0] == 'W':
+    for pkg in package_list:
+        if pkg.special_note and pkg.special_note[0] == 'W':
             return True
         else:
             return False
@@ -244,8 +244,8 @@ def load_optimal_truck(tuple):
                 truck.current_capacity = truck.maximum_capacity - len(route)
                 truck.route_distance = distance
                 
-                for package in truck.package_list:
-                    package.truck = truck.truck_id
+                for pkg in truck.package_list:
+                    pkg.truck = truck.truck_id
     
 
 def print_loading_packages(truck, package_list, verbosity):
@@ -254,8 +254,8 @@ def print_loading_packages(truck, package_list, verbosity):
     
     print (f"verbosity: {verbosity}")
     
-    for package in package_list:
-        print(f"  -LOADING Package {package.package_id} ONTO Truck {truck.truck_id + 1}")
+    for pkg in package_list:
+        print(f"  -LOADING Package {pkg.package_id} ONTO Truck {truck.truck_id + 1}")
     
 
 #jjg
