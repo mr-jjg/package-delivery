@@ -108,7 +108,7 @@ class PackageLoader:
                 for truck in truck_list:
                     print(f"  {truck.truck_id }: {truck.current_capacity}")
             
-            available_trucks = get_trucks_with_available_capacity(truck_list, working_package_list)
+            available_trucks = get_trucks_with_available_capacity(truck_list, len(working_package_list))
             
             # If adding the working_package_list exceeds current_capacity for all trucks, packages will need to be split up using k_means
             if not available_trucks:
@@ -211,11 +211,14 @@ def build_working_package_list(package_groups):
     return working_package_list
     
 
-def get_trucks_with_available_capacity(truck_list, package_list):
+def get_trucks_with_available_capacity(truck_list, list_length):
+    if not truck_list:
+        return []
+
     trucks_with_available_capacity = []
     
     for truck in truck_list:
-        if truck.current_capacity >= len(package_list):
+        if truck.current_capacity >= list_length:
             trucks_with_available_capacity.append(truck)
     
     return trucks_with_available_capacity

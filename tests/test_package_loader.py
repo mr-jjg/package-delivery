@@ -4,6 +4,7 @@
 import pytest
 import package
 import package_loader as pl
+import truck
 
 def make_pkg(id_, group=None, priority=None):
     return package.Package(id_, "Address", "City", "ST", 99999, None, 1.0, None, "at_the_hub", None, None, group, priority)
@@ -70,8 +71,55 @@ class TestHelpers:
         assert [pkg.package_id for pkg in package_groups[0]] == [4]
         for pkg in wpl:
             assert pkg.group is None
+
+    def test_get_trucks_with_available_capacity_happy_path(self):
+        truck_list = [
+            truck.Truck(1),
+            truck.Truck(2)
+        ]
+        truck_list[0].current_capacity = 0
+        truck_list[1].current_capacity = 2
+        twac = pl.get_trucks_with_available_capacity(truck_list, 1)
+        ids = [t.truck_id for t in twac]
+        assert ids == [2]
+
+    def test_get_trucks_with_available_capacity_unhappy_path(self):
+        truck_list = [
+            truck.Truck(1),
+            truck.Truck(2)
+        ]
+        truck_list[0].current_capacity = 0
+        truck_list[1].current_capacity = 0
+        twac = pl.get_trucks_with_available_capacity(truck_list, 1)
+        ids = [t.truck_id for t in twac]
+        assert ids == []
+
+    def test_get_trucks_with_available_capacity_current_capacity_equals_list_length(self):
+        truck_list = [
+            truck.Truck(1)
+        ]
+        truck_list[0].current_capacity = 2
+        twac = pl.get_trucks_with_available_capacity(truck_list, 2)
+        ids = [t.truck_id for t in twac]
+        assert ids == [1]
+
+    def test_get_trucks_with_available_capacity_empty_truck_list_throws_value_error(self):
+        truck_list = []
+        twac = pl.get_trucks_with_available_capacity(truck_list, 2)
+        assert twac == []
+
+    def test_get_trucks_with_available_capacity_no_packages_returns_all_trucks(self):
+        truck_list = [truck.Truck(n) for n in range(3)]
+        twac = pl.get_trucks_with_available_capacity(truck_list, 0)
+        ids = [t.truck_id for t in twac]
+        assert ids == [0, 1, 2]
+
+    def test_get_trucks_with_available_capacity_preserves_identity_order(self):
+        truck_list = [truck.Truck(n) for n in range(3)]
+        twac = pl.get_trucks_with_available_capacity(truck_list, 2)
+        for i in range(3):
+            assert truck_list[i] is twac[i]
 '''
-    def test_get_trucks_with_available_capacity():
         
     def test_has_w_note():
         
