@@ -119,10 +119,44 @@ class TestHelpers:
         twac = pl.get_trucks_with_available_capacity(truck_list, 2)
         for i in range(3):
             assert truck_list[i] is twac[i]
-'''
+
+    def test_has_w_note_returns_true_when_first_package_has_w(self):
+        package_list = [
+            make_pkg(1),
+            make_pkg(2)
+        ]
+        package_list[0].special_note = ["W", 2]
+        assert pl.has_w_note(package_list) == True
+
+    def test_has_w_note_returns_false_when_first_package_has_no_special_note(self):
+        package_list = [
+            make_pkg(1)
+        ]
         
-    def test_has_w_note():
+        assert pl.has_w_note(package_list) == False
+
+    def test_has_w_note_returns_false_when_first_package_special_note_not_w(self):
+        package_list = [
+            make_pkg(1),
+            make_pkg(2)
+        ]
+        package_list[0].special_note = ["T", 2]
         
+        assert pl.has_w_note(package_list) == False
+
+    def test_has_w_note_returns_true_when_any_package_has_w(self):
+        package_list = [
+            make_pkg(1),
+            make_pkg(2),
+            make_pkg(3)
+        ]
+        package_list[1].special_note = ["W", 3]
+        assert pl.has_w_note(package_list) == True
+
+    def test_has_w_note_empty_list_returns_false(self):
+        assert pl.has_w_note([]) == False
+
+'''   
     def test_remove_empty_groups():
         
     def test_load_optimal_truck():

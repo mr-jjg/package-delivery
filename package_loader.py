@@ -120,8 +120,6 @@ class PackageLoader:
                             # New working package list based on capacity checks on empty trucks
                             working_package_list = split_package_list(truck, package_groups, working_package_list)
                 else:
-                    # TODO: If no truck can fit the 'W' note, then we could move priority packages that are not 'T' notes back to the package_groups at position 0 until there is capacity.
-                    self.vprint(f"\nThere is not enough capacity on avaible trucks, and package list cannot be split. Exiting at 'load_packages' at iteration {count}.", verbosity)
                     raise SystemExit(1)
             
             # Testing the routes with each truck with available capacity. We want to find the best outcome for adding the working package list to one of the trucks.
@@ -225,11 +223,13 @@ def get_trucks_with_available_capacity(truck_list, list_length):
     
 
 def has_w_note(package_list):
+    if not package_list:
+        return False
+
     for pkg in package_list:
         if pkg.special_note and pkg.special_note[0] == 'W':
             return True
-        else:
-            return False
+    return False
     
 
 def remove_empty_groups(groups_list):
