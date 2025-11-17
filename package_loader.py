@@ -233,9 +233,7 @@ def has_w_note(package_list):
     
 
 def remove_empty_groups(groups_list):
-    for group in groups_list:
-        if not group:
-            groups_list.remove(group)
+    groups_list[:] = [g for g in groups_list if g]
     
 
 def load_optimal_truck(tuple):

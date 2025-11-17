@@ -156,9 +156,53 @@ class TestHelpers:
     def test_has_w_note_empty_list_returns_false(self):
         assert pl.has_w_note([]) == False
 
+    def test_remove_empty_groups_removes_single_empty_group(self):
+        groups_list = [[] for _ in range(3)]
+        groups_list[0].append(make_pkg(1))
+        groups_list[2].append(make_pkg(2))
+        pl.remove_empty_groups(groups_list)
+        assert len(groups_list) == 2
+        assert groups_list[1][0].package_id == 2
+
+    def test_remove_empty_groups_removes_multiple_empty_groups(self):
+        groups_list = [[] for _ in range(10)]
+        pl.remove_empty_groups(groups_list)
+        assert len(groups_list) == 0
+
+    def test_remove_empty_groups_leaves_non_empty_groups_untouched(self):
+        groups_list = [[] for _ in range(3)]
+        groups_list[0].append(make_pkg(1))
+        groups_list[2].append(make_pkg(2))
+        pkg1 = groups_list[0][0]
+        pkg2 = groups_list[2][0]
+        pl.remove_empty_groups(groups_list)
+        assert groups_list[0][0] is pkg1
+        assert groups_list[1][0] is pkg2
+
+    def test_remove_empty_groups_preserves_order_of_remaining_groups(self):
+        groups_list = [[] for _ in range(5)]
+        groups_list[0].append(make_pkg(1))
+        groups_list[2].append(make_pkg(2))
+        groups_list[2].append(make_pkg(3))
+        ids = [p.package_id for g in groups_list for p in g]
+        pl.remove_empty_groups(groups_list)
+        assert ids == [1, 2, 3]
+
+    def test_remove_empty_groups_no_empty_groups_no_change(self):
+        groups_list = [[] for _ in range(3)]
+        groups_list[0].append(make_pkg(1))
+        groups_list[1].append(make_pkg(2))
+        groups_list[2].append(make_pkg(3))
+        pl.remove_empty_groups(groups_list)
+        assert len(groups_list) == 3
+
+    def test_remove_empty_groups_all_groups_empty_returns_empty_list(self):
+        groups_list = [[] for _ in range(5)]
+        groups_list[1].append(make_pkg(1))
+        groups_list[3].append(make_pkg(2))
+        pl.remove_empty_groups(groups_list)
+        assert len(groups_list) == 2
 '''   
-    def test_remove_empty_groups():
-        
     def test_load_optimal_truck():
         
     def test_print_loading_packages():
