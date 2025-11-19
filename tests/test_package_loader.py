@@ -9,6 +9,11 @@ import truck
 def make_pkg(id_, group=None, priority=None):
     return package.Package(id_, "Address", "City", "ST", 99999, None, 1.0, None, "at_the_hub", None, None, group, priority)
 
+def make_truck_route_dist(route_len=4, dist=99.0):
+        tr = truck.Truck(1)
+        route = [make_pkg(i) for i in range(1, route_len + 1)]
+        return tr, route, dist
+
 class TestHelpers:
     def test_build_working_package_list_happy_path(self):
         package_groups = [
@@ -202,11 +207,64 @@ class TestHelpers:
         groups_list[3].append(make_pkg(2))
         pl.remove_empty_groups(groups_list)
         assert len(groups_list) == 2
-'''   
-    def test_load_optimal_truck():
-        
-    def test_print_loading_packages():
 
+    def test_load_optimal_truck_sets_truck_package_list_to_given_route(self):
+        tr, rte, dist = make_truck_route_dist()
+        pl.load_optimal_truck((tr, rte, dist))
+        assert tr.package_list == rte
+
+    def test_load_optimal_truck_updates_current_capacity_based_on_route_length(self):
+        tr, rte, dist = make_truck_route_dist()
+        pl.load_optimal_truck((tr, rte, dist))
+        assert tr.current_capacity == tr.maximum_capacity - len(rte)
+
+    def test_load_optimal_truck_sets_route_distance_to_given_distance(self):
+        tr, rte, dist = make_truck_route_dist()
+        pl.load_optimal_truck((tr, rte, dist))
+        assert tr.route_distance == dist
+
+    def test_load_optimal_truck_sets_truck_id_on_all_packages_in_route(self):
+        tr, rte, dist = make_truck_route_dist()
+        pl.load_optimal_truck((tr, rte, dist))
+        for pkg in rte:
+            assert pkg.truck == tr.truck_id
+
+    def test_load_optimal_truck_overwrites_existing_truck_state(self):
+        tr, rte, dist = make_truck_route_dist()
+        before = [tr.package_list, tr.current_capacity, tr.route_distance]
+        pl.load_optimal_truck((tr, rte, dist))
+        after = [tr.package_list, tr.current_capacity, tr.route_distance]
+        for i in range(3):
+            assert before[i] != after[i]
+
+    def test_print_loading_packages_returns_immediately_when_verbosity_is_zero_string(self, capsys):
+        tr, rte, _ = make_truck_route_dist()
+        pl.print_loading_packages(tr, rte, "0")
+        out = capsys.readouterr().out
+        assert out == ""
+
+    def test_print_loading_packages_prints_header_and_lines_when_verbosity_is_nonzero(self, capsys):
+        tr, rte, _ = make_truck_route_dist()
+        pl.print_loading_packages(tr, rte, "1")
+        out = capsys.readouterr().out
+        assert "verbosity: 1" in out
+        for i in range(1, len(rte)+1):
+            assert f"-LOADING Package {i} ONTO Truck {tr.truck_id+1}" in out
+
+    def test_print_loading_packages_handles_empty_package_list(self, capsys):
+        tr = truck.Truck(1)
+        pl.print_loading_packages(tr, [], "1")
+        out = capsys.readouterr().out
+        assert "verbosity: 1" in out
+        assert "-LOADING Package" not in out
+
+    def test_print_loading_packages_uses_truck_id_plus_one_in_output(self, capsys):
+        tr, rte, _ = make_truck_route_dist()
+        pl.print_loading_packages(tr, rte, "1")
+        out = capsys.readouterr().out
+        assert f"ONTO Truck {tr.truck_id + 1}" in out
+
+'''
 class TestLoadAssignedTrucks:
     
 class TestLoadEmptyTrucksWithDrivers:

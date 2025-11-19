@@ -237,16 +237,16 @@ def remove_empty_groups(groups_list):
     
 
 def load_optimal_truck(tuple):
-                truck = tuple[0]
-                route = tuple[1]
-                distance = tuple[2]
-                
-                truck.package_list = route
-                truck.current_capacity = truck.maximum_capacity - len(route)
-                truck.route_distance = distance
-                
-                for pkg in truck.package_list:
-                    pkg.truck = truck.truck_id
+    truck = tuple[0]
+    route = tuple[1]
+    distance = tuple[2]
+
+    truck.package_list = route
+    truck.current_capacity = truck.maximum_capacity - len(route)
+    truck.route_distance = distance
+
+    for pkg in truck.package_list:
+        pkg.truck = truck.truck_id
     
 
 def print_loading_packages(truck, package_list, verbosity):
