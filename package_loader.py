@@ -25,10 +25,11 @@ class PackageLoader:
                     and 0 <= truck_to_load < len(fleet.truck_list)
                 ):
                     truck = fleet.truck_list[truck_to_load]
-                    self.vprint(f"  -LOADING Package {pkg.package_id} ONTO Truck {truck.truck_id + 1}", verbosity)
-                    truck.package_list.append(pkg)
-                    truck.current_capacity -= 1
-                    package_groups[i].remove(pkg)
+                    if truck.current_capacity > 0:
+                        self.vprint(f"  -LOADING Package {pkg.package_id} ONTO Truck {truck.truck_id + 1}", verbosity)
+                        truck.package_list.append(pkg)
+                        truck.current_capacity -= 1
+                        package_groups[i].remove(pkg)
                     
         remove_empty_groups(package_groups)
         
@@ -104,7 +105,7 @@ class PackageLoader:
             print_package_list(working_package_list)
             '''
             self.vprint(f"\ncurrent_capacity of each truck:", verbosity)
-            if verbosity == 1:
+            if verbosity == "1":
                 for truck in truck_list:
                     print(f"  {truck.truck_id }: {truck.current_capacity}")
             

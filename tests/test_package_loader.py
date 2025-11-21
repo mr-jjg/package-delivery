@@ -5,6 +5,7 @@ import pytest
 import package
 import package_loader as pl
 import truck
+import fleet
 
 def make_pkg(id_, group=None, priority=None):
     return package.Package(id_, "Address", "City", "ST", 99999, None, 1.0, None, "at_the_hub", None, None, group, priority)
@@ -264,9 +265,131 @@ class TestHelpers:
         out = capsys.readouterr().out
         assert f"ONTO Truck {tr.truck_id + 1}" in out
 
-'''
+    def test_vprint_prints_message_when_level_is_string_1(self, capsys):
+        loader = pl.PackageLoader()
+        message = "Hello World"
+
+        loader.vprint(message, "1")
+        captured = capsys.readouterr()
+
+        assert captured.out == "Hello World\n"
+
+    def test_vprint_prints_message_when_level_is_not_string_1(self, capsys):
+        loader = pl.PackageLoader()
+        levels = [1, "2", "0", "", None]
+        for level in levels:
+            loader.vprint("Hello World", level)
+            captured = capsys.readouterr()
+            assert captured.out == ""
+
 class TestLoadAssignedTrucks:
-    
+    def test_load_assigned_trucks_loads_assigned_package_onto_truck_and_updates_state(self):
+        test_fleet = fleet.Fleet(2)
+        package_groups = [
+            [
+                make_pkg(1, 2, 0),
+                make_pkg(2, 2, 0),
+                make_pkg(3, 1, 0),
+                make_pkg(4, None, 0)
+            ],
+            [
+                make_pkg(5, 3, 1),
+                make_pkg(6, 4, 1),
+                make_pkg(7, 4, 1),
+                make_pkg(8, None, 1)
+            ]
+        ]
+        for pkg in package_groups[0]:
+            pkg.truck = 0
+        package_groups[1][0].truck = 1
+
+        loader = pl.PackageLoader()
+        loader.load_assigned_trucks(test_fleet, package_groups, "0")
+
+        tr0, tr1 = test_fleet.truck_list[0], test_fleet.truck_list[1]
+        ids = [pkg.package_id for group in package_groups for pkg in group]
+
+        assert len(tr0.package_list) == 4
+        assert len(tr1.package_list) == 1
+
+        assert tr0.current_capacity == tr0.maximum_capacity - 4
+        assert tr1.current_capacity == tr1.maximum_capacity - 1
+
+        assert len(package_groups) == 1
+        assert ids == [6, 7, 8]
+
+    def test_load_assigned_trucks_does_not_load_when_truck_capacity_is_zero(self):
+        test_fleet = fleet.Fleet(1)
+        package_groups = [
+            [
+                make_pkg(1, 2, 0),
+                make_pkg(2, 2, 0),
+                make_pkg(3, 1, 0),
+                make_pkg(4, None, 0)
+            ]
+        ]
+        for pkg in package_groups[0]:
+            pkg.truck = 0
+
+        tr0 = test_fleet.truck_list[0]
+        tr0.current_capacity = 0
+
+        loader = pl.PackageLoader()
+        loader.load_assigned_trucks(test_fleet, package_groups, "0")
+        ids = [pkg.package_id for group in package_groups for pkg in group]
+
+        assert len(tr0.package_list) == 0
+        assert tr0.current_capacity == 0
+        assert len(package_groups) == 1
+        assert ids == [1, 2, 3, 4]
+
+    def test_load_assigned_trucks_does_not_load_when_pkg_truck_is_none(self):
+        test_fleet = fleet.Fleet(1)
+        package_groups = [
+            [
+                make_pkg(1, 2, 0),
+                make_pkg(2, 2, 0),
+                make_pkg(3, 1, 0),
+                make_pkg(4, None, 0)
+            ]
+        ]
+
+        loader = pl.PackageLoader()
+        loader.load_assigned_trucks(test_fleet, package_groups, "0")
+
+        tr0 = test_fleet.truck_list[0]
+        ids = [pkg.package_id for group in package_groups for pkg in group]
+
+        assert len(tr0.package_list) == 0
+        assert tr0.current_capacity == tr0.maximum_capacity
+        assert len(package_groups) == 1
+        assert ids == [1, 2, 3, 4]
+
+    def test_load_assigned_trucks_does_not_load_when_truck_id_is_out_of_range(self):
+        test_fleet = fleet.Fleet(1)
+        package_groups = [
+            [
+                make_pkg(1, 2, 0),
+                make_pkg(2, 2, 0),
+                make_pkg(3, 1, 0),
+                make_pkg(4, None, 0)
+            ]
+        ]
+        for pkg in package_groups[0]:
+            pkg.truck = 99
+
+        loader = pl.PackageLoader()
+        loader.load_assigned_trucks(test_fleet, package_groups, "0")
+
+        tr0 = test_fleet.truck_list[0]
+        ids = [pkg.package_id for group in package_groups for pkg in group]
+
+        assert len(tr0.package_list) == 0
+        assert tr0.current_capacity == tr0.maximum_capacity
+        assert len(package_groups) == 1
+        assert ids == [1, 2, 3, 4]
+
+'''
 class TestLoadEmptyTrucksWithDrivers:
 
 class TestLoadPackages:
