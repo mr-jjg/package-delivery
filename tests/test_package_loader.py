@@ -7,6 +7,22 @@ import package_loader as pl
 import truck
 import fleet
 
+@pytest.fixture
+def fake_split(monkeypatch):
+    """
+    Provides a deterministic fake split_package_list for tests that 
+    need to avoid k-means and the distance matrix.
+    """
+    def _fake_split(truck, groups, working_list):
+        keep = working_list[:truck.current_capacity]
+        leftover = working_list[truck.current_capacity:]
+        groups.insert(0, leftover)
+
+        return keep
+
+    monkeypatch.setattr(pl, "split_package_list", _fake_split)
+    return _fake_split
+
 def make_pkg(id_, group=None, priority=None):
     return package.Package(id_, "Address", "City", "ST", 99999, None, 1.0, None, "at_the_hub", None, None, group, priority)
 
@@ -389,8 +405,145 @@ class TestLoadAssignedTrucks:
         assert len(package_groups) == 1
         assert ids == [1, 2, 3, 4]
 
-'''
 class TestLoadEmptyTrucksWithDrivers:
+    def test_loads_highest_priority_packages_onto_empty_truck_with_driver(self):
+        test_fleet = fleet.Fleet(2)
+        test_truck = test_fleet.truck_list[0]
+        test_truck.driver = "Timmy"
+        package_groups = [
+            [make_pkg(1, 3, 1), make_pkg(2, 3, 1), make_pkg(3, 3, 1)],
+            [make_pkg(4, 4, 2)]
+        ]
+        loader = pl.PackageLoader()
+        loader.load_empty_trucks_with_drivers(test_fleet, package_groups, "0", ["Timmy"])
 
+        assert len(package_groups) == 1
+        assert [pkg.package_id for pkg in package_groups[0]] == [4]
+
+        ids = [pkg.package_id for pkg in test_truck.package_list]
+        assert ids == [1, 2, 3]
+        assert test_truck.current_capacity == test_truck.maximum_capacity - 3  
+        assert all(pkg.truck == test_truck.truck_id for pkg in test_truck.package_list)
+
+    def test_does_not_load_when_no_empty_trucks_have_drivers(self):
+        test_fleet = fleet.Fleet(2)
+        package_groups = [[make_pkg(1, 3, 1)]]
+
+        loader = pl.PackageLoader()
+        loader.load_empty_trucks_with_drivers(test_fleet, package_groups, "0", ["Timmy"])
+
+        assert len(package_groups) == 1
+        assert package_groups[0][0].truck is None
+        for truck in test_fleet.truck_list:
+            assert not truck.package_list
+
+    def test_ignores_trucks_that_are_not_empty(self):
+        test_fleet = fleet.Fleet(2)
+        truck_a, truck_b = test_fleet.truck_list[0], test_fleet.truck_list[1]
+        truck_a.driver = "Timmy"
+        truck_a.package_list = [make_pkg(2, 4, 2)]
+        truck_a.current_capacity -= 1
+        truck_b.driver = "Jimmy"
+        truck_b.package_list = [make_pkg(3, 4, 2)]
+        truck_b.current_capacity -= 1
+
+        package_groups = [[make_pkg(1, 3, 1)]]
+
+        loader = pl.PackageLoader()
+        loader.load_empty_trucks_with_drivers(test_fleet, package_groups, "0", ["Timmy", "Jimmy"])
+
+        assert len(package_groups) == 1
+        assert package_groups[0][0].package_id == 1
+        assert len(truck_a.package_list) == 1
+        assert truck_a.package_list[0].package_id == 2
+        assert len(truck_b.package_list) == 1
+        assert truck_b.package_list[0].package_id == 3
+
+    def test_splits_and_returns_leftover_packages_to_front_of_package_groups_when_capacity_exceeded(self, fake_split):
+        test_fleet = fleet.Fleet(1)
+        test_truck = test_fleet.truck_list[0]
+        test_truck.driver = "Timmy"
+        test_truck.current_capacity = test_truck.maximum_capacity = 2
+        package_groups = [[make_pkg(1, 3, 1), make_pkg(2, 3, 1), make_pkg(3, 3, 1)]]
+
+        loader = pl.PackageLoader()
+        loader.load_empty_trucks_with_drivers(test_fleet, package_groups, "0", ["Timmy"])
+
+        ids = [pkg.package_id for pkg in test_truck.package_list]
+        assert ids == [1, 2]
+        assert test_truck.current_capacity == 0
+        assert len(package_groups) == 1
+        assert [pkg.package_id for pkg in package_groups[0]] == [3]
+
+    def test_does_not_split_package_list_when_w_note_present_and_it_fits(self):
+        test_fleet = fleet.Fleet(1)
+        test_truck = test_fleet.truck_list[0]
+        test_truck.driver = "Timmy"
+        test_truck.current_capacity = test_truck.maximum_capacity = 3
+        w_package_a = make_pkg(1, 3, 1)
+        w_package_a.special_note = ['W', 2]
+        w_package_b = make_pkg(2, 3, 1)
+        w_package_b.special_note = ['W', 1]
+        package_groups = [[w_package_a, w_package_b, make_pkg(3, 3, 1)]]
+
+        loader = pl.PackageLoader()
+        loader.load_empty_trucks_with_drivers(test_fleet, package_groups, "0", ["Timmy"])
+
+        ids = [pkg.package_id for pkg in test_truck.package_list]
+        assert ids == [1, 2, 3]
+        assert test_truck.current_capacity == 0
+        assert len(package_groups) == 0
+
+    def test_raises_when_w_note_present_and_it_doesnt_fit(self):
+        test_fleet = fleet.Fleet(1)
+        test_truck = test_fleet.truck_list[0]
+        test_truck.driver = "Timmy"
+        test_truck.current_capacity = test_truck.maximum_capacity = 2
+        w_package_a = make_pkg(1, 3, 1)
+        w_package_a.special_note = ['W', 2]
+        w_package_b = make_pkg(2, 3, 1)
+        w_package_b.special_note = ['W', 1]
+        package_groups = [[w_package_a, w_package_b, make_pkg(3, 3, 1)]]
+
+        loader = pl.PackageLoader()
+        with pytest.raises(SystemExit):
+            loader.load_empty_trucks_with_drivers(test_fleet, package_groups, "0", ["Timmy"])
+        assert test_truck.package_list == []
+        assert test_truck.current_capacity == 2
+
+    def test_removes_empty_groups_after_loading(self):
+        test_fleet = fleet.Fleet(1)
+        test_truck = test_fleet.truck_list[0]
+        test_truck.driver = "Timmy"
+        package_groups = [[make_pkg(1, 3, 1)], []]
+
+        loader = pl.PackageLoader()
+        loader.load_empty_trucks_with_drivers(test_fleet, package_groups, "0", ["Timmy"])
+
+        assert len(package_groups) == 0
+
+    def test_processes_multiple_empty_trucks_in_order(self):
+        test_fleet = fleet.Fleet(2)
+        truck_a, truck_b = test_fleet.truck_list[0], test_fleet.truck_list[1]
+        truck_a.driver = "Timmy"
+        truck_b.driver = "Jimmy"
+        package_groups = [
+            [make_pkg(1, 3, 1), make_pkg(2, 3, 1), make_pkg(3, 3, 1)],
+            [make_pkg(4, 4, 2)]
+        ]
+        loader = pl.PackageLoader()
+        loader.load_empty_trucks_with_drivers(test_fleet, package_groups, "0", ["Timmy", "Jimmy"])
+
+        assert len(package_groups) == 0
+
+        assert [pkg.package_id for pkg in truck_a.package_list] == [1, 2, 3]
+        assert truck_a.current_capacity == truck_a.maximum_capacity - 3
+        assert all(pkg.truck is not None for pkg in truck_a.package_list)
+
+        assert truck_b.package_list[0].package_id == 4
+        assert truck_b.current_capacity == truck_b.maximum_capacity - 1
+        assert truck_b.package_list[0].truck == 1
+
+'''
 class TestLoadPackages:
 '''

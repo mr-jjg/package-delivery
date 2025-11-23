@@ -40,7 +40,7 @@ class PackageLoader:
         # Highest priority packages need to go onto empty trucks that have drivers (Ready to roll).
         empty_trucks_with_drivers_list = []
         for truck in fleet.truck_list:
-            if truck.driver in drivers and truck.current_capacity == 16:
+            if truck.driver in drivers and truck.current_capacity == truck.maximum_capacity:
                 empty_trucks_with_drivers_list.append(truck.truck_id)
         
         while empty_trucks_with_drivers_list:
@@ -48,20 +48,25 @@ class PackageLoader:
             working_package_list = build_working_package_list(package_groups)
             
             # Find the first empty truck in the fleet and pop from the list so that the while loop will terminate.
-            truck_index = empty_trucks_with_drivers_list.pop(0)
-            empty_truck = fleet.truck_list[truck_index]
+            empty_truck = fleet.truck_list[empty_trucks_with_drivers_list.pop(0)]
             
             # Check for special note 'W', as these cannot be split
             w_note = has_w_note(working_package_list)
             
             # If the working_package_list does not have any 'W' notes, then we can check to see if the capacity is sufficient to load the entire list.
-            if empty_truck.maximum_capacity < len(working_package_list) and not w_note:
-                # New working package list based on capacity checks on empty trucks
-                working_package_list = split_package_list(empty_truck, package_groups, working_package_list)
+            if len(working_package_list) > empty_truck.maximum_capacity:
+                if w_note:
+                    self.vprint(
+                    f"Working package list with 'W' note cannot fit on truck {empty_truck.truck_id + 1}.",
+                    verbosity,
+                    )
+                    raise SystemExit(1)
+                else:
+                    working_package_list = split_package_list(empty_truck, package_groups, working_package_list)
                 
             # Now add each package in the working_package_list to the empty_truck.
             for pkg in working_package_list:
-                pkg.empty_truck = empty_truck.truck_id
+                pkg.truck = empty_truck.truck_id
                 empty_truck.package_list.append(pkg)
                 empty_truck.current_capacity -= 1
             
