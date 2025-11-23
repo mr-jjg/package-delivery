@@ -81,15 +81,7 @@ class PackageLoader:
         warehouse_hash = get_warehouse_hash()
         
         # We can call this method for trucks with specific drivers, or trucks without drivers.
-        truck_list = []
-        if drivers:
-            for truck in fleet.truck_list:
-                if truck.driver in drivers and truck.current_capacity > 0:
-                    truck_list.append(truck)
-        else:
-            for truck in fleet.truck_list:
-                if truck.driver is None and truck.current_capacity > 0:
-                    truck_list.append(truck)
+        truck_list = get_candidate_trucks(fleet, drivers)
         
         # Calculate the nearest_neighbor on each truck's package_list to in preparation for later comparisons.
         for truck in truck_list:
@@ -117,16 +109,7 @@ class PackageLoader:
             available_trucks = get_trucks_with_available_capacity(truck_list, len(working_package_list))
             
             # If adding the working_package_list exceeds current_capacity for all trucks, packages will need to be split up using k_means
-            if not available_trucks:
-                w_note = has_w_note(working_package_list) # Checking for 'W' note packages, as these cannot be separated.
-                
-                if not w_note:
-                    for truck in available_trucks:
-                        if truck.maximum_capacity < len(working_package_list) and not w_note:
-                            # New working package list based on capacity checks on empty trucks
-                            working_package_list = split_package_list(truck, package_groups, working_package_list)
-                else:
-                    raise SystemExit(1)
+            working_package_list, available_trucks = adjust_working_list_for_capacity(truck_list, package_groups, working_package_list, verbosity)
             
             # Testing the routes with each truck with available capacity. We want to find the best outcome for adding the working package list to one of the trucks.
             
@@ -191,6 +174,37 @@ class PackageLoader:
 
 # Helper functions
 
+def adjust_working_list_for_capacity(truck_list, package_groups, working_package_list, verbosity):
+    # First see which trucks can take the *full* list
+    available_trucks = get_trucks_with_available_capacity(truck_list, len(working_package_list))
+
+    if available_trucks:
+        return working_package_list, available_trucks
+
+    # No truck can fit the full working list
+    w_note = has_w_note(working_package_list)
+
+    if w_note:
+        print(  # or vprint via a loader method if you want to pass a callback
+            "\nWorking package list contains a 'W' note and cannot fit on any truck."
+        )
+        raise SystemExit(1)
+
+    candidate_truck = max(truck_list, key=lambda t: t.current_capacity)
+
+    if candidate_truck.current_capacity == 0:
+        print("\nNo truck has remaining capacity to load any part of working_package_list.")
+        raise SystemExit(1)
+
+    # Split the working list based on this truck's *current* capacity
+    working_package_list = split_package_list(candidate_truck, package_groups, working_package_list)
+
+    # Recompute which trucks can now take the (smaller) working list
+    available_trucks = get_trucks_with_available_capacity(truck_list, len(working_package_list))
+
+    return working_package_list, available_trucks
+
+
 def build_working_package_list(package_groups):
     while package_groups and not package_groups[0]:
         package_groups.pop(0)
@@ -233,6 +247,20 @@ def get_trucks_with_available_capacity(truck_list, list_length):
     
     return trucks_with_available_capacity
     
+def get_candidate_trucks(fleet, drivers=None):
+    candidates = []
+
+    if drivers:
+        for truck in fleet.truck_list:
+            if truck.driver in drivers and truck.current_capacity > 0:
+                candidates.append(truck)
+    else:
+        for truck in fleet.truck_list:
+            if truck.driver is None and truck.current_capacity > 0:
+                candidates.append(truck)
+
+    return candidates
+
 
 def has_w_note(package_list):
     if not package_list:

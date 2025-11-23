@@ -32,6 +32,8 @@ def make_truck_route_dist(route_len=4, dist=99.0):
         return tr, route, dist
 
 class TestHelpers:
+    #def test_adjust_working_list_for_capacity(self):
+
     def test_build_working_package_list_happy_path(self):
         package_groups = [
             [
@@ -141,6 +143,8 @@ class TestHelpers:
         twac = pl.get_trucks_with_available_capacity(truck_list, 2)
         for i in range(3):
             assert truck_list[i] is twac[i]
+
+    #def test_get_candidate_trucks
 
     def test_has_w_note_returns_true_when_first_package_has_w(self):
         package_list = [
