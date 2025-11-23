@@ -192,6 +192,12 @@ class PackageLoader:
 # Helper functions
 
 def build_working_package_list(package_groups):
+    while package_groups and not package_groups[0]:
+        package_groups.pop(0)
+
+    if not package_groups:
+        return []
+
     zero_package = package_groups[0][0]
     highest_group, highest_priority = zero_package.group, zero_package.priority
     
