@@ -32,7 +32,72 @@ def make_truck_route_dist(route_len=4, dist=99.0):
         return tr, route, dist
 
 class TestHelpers:
-    #def test_adjust_working_list_for_capacity(self):
+    def test_adjust_working_list_for_capacity_truck_can_fit_full_list(self, monkeypatch):
+        t1, t2 = truck.Truck(), truck.Truck()
+        t1.truck_id, t2.truck_id = 1, 2
+        t1.current_capacity, t2.current_capacity = 4, 3
+        truck_list = [t1, t2]
+
+        working_package_list = [make_pkg(n) for n in range(4)]
+        package_groups = []
+
+        def _should_not_be_called(*args, **kwargs):
+            raise AssertionError("split_package_list should not be called on full-fit path")
+        monkeypatch.setattr(pl, "split_package_list", _should_not_be_called)
+
+        new_working_package_list, available_trucks = pl.adjust_working_list_for_capacity(truck_list, package_groups, working_package_list, "0")
+
+        assert new_working_package_list == working_package_list
+        assert [pkg.package_id for pkg in new_working_package_list] == [0, 1, 2, 3]
+        assert len(package_groups) == 0
+        assert t1 in available_trucks
+        assert len(available_trucks) == 1
+        assert available_trucks[0].current_capacity >= len(new_working_package_list)
+
+    def test_adjust_working_list_for_capacity_splits_when_no_truck_can_fit_full_list(self, monkeypatch, fake_split):
+        t1, t2 = truck.Truck(), truck.Truck()
+        t1.truck_id, t2.truck_id = 1, 2
+        t1.current_capacity, t2.current_capacity = 2, 3
+        truck_list = [t1, t2]
+
+        working_package_list = [make_pkg(n) for n in range(4)]
+        package_groups = []
+
+        monkeypatch.setattr(pl, "has_w_note", lambda pkg_list: False)
+
+        new_working_package_list, available_trucks = pl.adjust_working_list_for_capacity(truck_list, package_groups, working_package_list, "0")
+
+        assert new_working_package_list == working_package_list[: t2.current_capacity]
+        assert [pkg.package_id for pkg in new_working_package_list] == [0, 1, 2]
+        assert package_groups[0][0].package_id == 3
+        assert t2 in available_trucks
+        assert available_trucks[0].current_capacity >= len(new_working_package_list)
+
+    def test_adjust_working_list_for_capacity_fails_on_has_w_note(self):
+        t1, t2 = truck.Truck(), truck.Truck()
+        t1.truck_id, t2.truck_id = 1, 2
+        t1.current_capacity, t2.current_capacity = 2, 3
+        truck_list = [t1, t2]
+
+        working_package_list = [make_pkg(n) for n in range(4)]
+        working_package_list[0].special_note = ["W", 1]
+        working_package_list[1].special_note = ["W", 0]
+        package_groups = []
+
+        with pytest.raises(SystemExit):
+            new_working_package_list, available_trucks = pl.adjust_working_list_for_capacity(truck_list, package_groups, working_package_list, "0")
+
+    def test_adjust_working_list_for_capacity_fails_on_all_trucks_with_zero_capacity(self):
+        t1, t2 = truck.Truck(), truck.Truck()
+        t1.truck_id, t2.truck_id = 1, 2
+        t1.current_capacity, t2.current_capacity = 0, 0
+        truck_list = [t1, t2]
+
+        working_package_list = [make_pkg(n) for n in range(4)]
+        package_groups = []
+
+        with pytest.raises(SystemExit):
+            new_working_package_list, available_trucks = pl.adjust_working_list_for_capacity(truck_list, package_groups, working_package_list, "0")
 
     def test_build_working_package_list_happy_path(self):
         package_groups = [
@@ -144,7 +209,75 @@ class TestHelpers:
         for i in range(3):
             assert truck_list[i] is twac[i]
 
-    #def test_get_candidate_trucks
+    def test_get_candidate_trucks_returns_trucks_assigned_to_specified_drivers_when_drivers_list_is_provided(self):
+        drivers = ["Ren", "Stimpy"]
+        test_fleet = fleet.Fleet(2)
+        for i, t in enumerate(test_fleet.truck_list):
+            t.driver = drivers[i]
+
+        candidates = pl.get_candidate_trucks(test_fleet, drivers)
+        candidate_drivers = [t.driver for t in candidates]
+
+        assert len(candidates) == 2
+        assert set(candidate_drivers) == set(drivers)
+
+    def test_get_candidate_trucks_excludes_trucks_with_zero_capacity_when_drivers_list_is_provided(self):
+        drivers = ["Ren", "Stimpy"]
+        test_fleet = fleet.Fleet(2)
+        for i, t in enumerate(test_fleet.truck_list):
+            t.driver = drivers[i]
+        full_truck = test_fleet.truck_list[0]
+        full_truck.current_capacity = 0
+
+        candidates = pl.get_candidate_trucks(test_fleet, drivers)
+
+        assert full_truck not in candidates
+        assert len(candidates) == 1
+        assert candidates[0].driver == "Stimpy"
+
+    def test_get_candidate_trucks_returns_only_unassigned_trucks_when_no_drivers_list_is_provided(self):
+        drivers = ["Ren", "Stimpy"]
+        test_fleet = fleet.Fleet(5)
+        for i, t in enumerate(test_fleet.truck_list[:-3]):
+            t.driver = drivers[i]
+
+        candidates = pl.get_candidate_trucks(test_fleet)
+
+        assert len(candidates) == 3
+        assert all(t.driver is None for t in candidates)
+
+    def test_get_candidate_trucks_excludes_unassigned_trucks_with_zero_capacity_when_no_drivers_list_is_provided(self):
+        drivers = ["Ren", "Stimpy"]
+        test_fleet = fleet.Fleet(4)
+        for i, t in enumerate(test_fleet.truck_list[2:]):
+            t.driver = drivers[i]
+        full_truck = test_fleet.truck_list[0]
+        full_truck.current_capacity = 0
+
+        candidates = pl.get_candidate_trucks(test_fleet)
+
+        assert len(candidates) == 1
+        assert full_truck not in candidates
+        assert any(t.driver is None for t in candidates)
+
+    def test_get_candidate_trucks_returns_empty_list_when_drivers_list_provided_but_no_trucks_match(self):
+        drivers = ["Ren", "Stimpy"]
+        test_fleet = fleet.Fleet(4)
+        full_truck = test_fleet.truck_list[0]
+        full_truck.current_capacity = 0
+
+        candidates = pl.get_candidate_trucks(test_fleet, drivers)
+
+        assert candidates == []
+
+    def test_get_candidate_trucks_returns_empty_list_when_no_drivers_list_provided_and_no_unassigned_trucks_available(self):
+        test_fleet = fleet.Fleet(4)
+        for t in test_fleet.truck_list:
+            t.current_capacity = 0
+
+        candidates = pl.get_candidate_trucks(test_fleet)
+
+        assert candidates == []
 
     def test_has_w_note_returns_true_when_first_package_has_w(self):
         package_list = [
