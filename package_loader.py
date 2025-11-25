@@ -114,48 +114,10 @@ class PackageLoader:
             # Testing the routes with each truck with available capacity. We want to find the best outcome for adding the working package list to one of the trucks.
             
             # Step 1: First build a list of feasible routes
-            feasible_routes_list = []
-            for truck in available_trucks:
-                self.vprint(f"\nTesting Truck {truck.truck_id + 1} for feasibility", verbosity)
-                test_package_list =  truck.package_list + working_package_list
+            feasible_routes_list = build_feasible_routes(available_trucks, working_package_list, verbosity)
                 
-                # Generate the test route and the total distance traveled on that route. This includes the distance from the hub to the address of the first package on the list.
-                test_route_distance, test_route = nearest_neighbor(test_package_list)
-                
-                # Check the route again delivery deadlines for feasibility. Again, this includes the delivery deadline of the first package on the list when leaving the hub.
-                route_feasibility = check_route_feasibility(test_route, truck.speed_mph, verbosity)
-                
-                # Add the feasible route to the list
-                if route_feasibility:
-                    #print("Route is feasible. Appending to feasible_routes_list...")
-                    feasible_routes_list.append((truck, test_route, test_route_distance))
-            
-            if not feasible_routes_list:
-                # TODO: Add functionality to add driver and/or add truck.
-                self.vprint(f"\nThere are no feasible routes. Exiting at 'load_packages' at iteration {count}.", verbosity)
-                raise SystemExit(1)
-                
-            
             # Step 2: Determine which feasible route minimizes the total distance when replacing a truck's current route.
-            if len(feasible_routes_list) > 1:
-                current_distances = [truck.route_distance for truck, _, _ in feasible_routes_list]
-                total_current_distance = sum(current_distances)
-                
-                min_total_distance = float('inf')
-                best_option = None # Tuple: (truck, test_route, test_route_distance)
-                
-                for i, (truck, test_route, test_distance) in enumerate(feasible_routes_list):
-                    test_total_distance = total_current_distance - current_distances[i] + test_distance
-                    
-                    if test_total_distance < min_total_distance:
-                        min_total_distance = test_total_distance
-                        best_option = (truck, test_route, test_distance)
-                        #print(f"\nTruck {best_option[0].truck_id} has a route with the minimum total distance of {min_total_distance} by ") # DEBUG ONLY
-                    #else: # DEBUG ONLY
-                        #print(f"\nTruck {truck.truck_id + 1} failed to produce a minimum total distance with distance {test_total_distance}") # DEBUG ONLY
-            else: # Handles the case where there is only one feasible route
-                best_option = feasible_routes_list[0]
-                #print(f"\nTruck {best_option[0].truck_id} is the only feasible route.") # DEBUG ONLY
+            best_option = choose_best_option(feasible_routes_list)
                 
             # Step 3: Load the optimal truck by fixing the package_list, current_capacity, and route_distance attributes
             optimal_truck = best_option[0]
@@ -247,6 +209,56 @@ def get_trucks_with_available_capacity(truck_list, list_length):
     
     return trucks_with_available_capacity
     
+
+def build_feasible_routes(available_trucks, working_package_list, verbosity):
+    feasible_routes_list = []
+    for truck in available_trucks:
+        if verbosity == "1": vprint(f"\nTesting Truck {truck.truck_id + 1} for feasibility", verbosity)
+
+        test_package_list =  truck.package_list + working_package_list
+
+        # Generate the test route and the total distance traveled on that route. This includes the distance from the hub to the address of the first package on the list.
+        test_route_distance, test_route = nearest_neighbor(test_package_list)
+
+        # Check the route again delivery deadlines for feasibility. Again, this includes the delivery deadline of the first package on the list when leaving the hub.
+        route_feasibility = check_route_feasibility(test_route, truck.speed_mph, verbosity)
+
+        # Add the feasible route to the list
+        if route_feasibility:
+            #print("Route is feasible. Appending to feasible_routes_list...")
+            feasible_routes_list.append((truck, test_route, test_route_distance))
+
+    if not feasible_routes_list:
+        #if verbosity == "1": vprint(f"\nThere are no feasible routes. Exiting at 'load_packages' at iteration {count}.", verbosity)
+        raise SystemExit(1)
+
+    return feasible_routes_list
+
+
+def choose_best_option(feasible_routes_list):
+    if len(feasible_routes_list) > 1:
+        current_distances = [truck.route_distance for truck, _, _ in feasible_routes_list]
+        total_current_distance = sum(current_distances)
+
+        min_total_distance = float('inf')
+        best_option = None # Tuple: (truck, test_route, test_route_distance)
+
+        for i, (truck, test_route, test_distance) in enumerate(feasible_routes_list):
+            test_total_distance = total_current_distance - current_distances[i] + test_distance
+
+            if test_total_distance < min_total_distance:
+                min_total_distance = test_total_distance
+                best_option = (truck, test_route, test_distance)
+                #print(f"\nTruck {best_option[0].truck_id} has a route with the minimum total distance of {min_total_distance} by ") # DEBUG ONLY
+            #else: # DEBUG ONLY
+                #print(f"\nTruck {truck.truck_id + 1} failed to produce a minimum total distance with distance {test_total_distance}") # DEBUG ONLY
+    else: # Handles the case where there is only one feasible route
+        best_option = feasible_routes_list[0]
+        #print(f"\nTruck {best_option[0].truck_id} is the only feasible route.") # DEBUG ONLY
+
+    return best_option
+
+
 def get_candidate_trucks(fleet, drivers=None):
     candidates = []
 

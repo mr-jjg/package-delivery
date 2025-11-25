@@ -209,6 +209,10 @@ class TestHelpers:
         for i in range(3):
             assert truck_list[i] is twac[i]
 
+    #def test_build_feasible_routes(self)
+
+    #def test_choose_best_option(self)
+
     def test_get_candidate_trucks_returns_trucks_assigned_to_specified_drivers_when_drivers_list_is_provided(self):
         drivers = ["Ren", "Stimpy"]
         test_fleet = fleet.Fleet(2)
