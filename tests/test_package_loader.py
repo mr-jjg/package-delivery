@@ -23,6 +23,13 @@ def fake_split(monkeypatch):
     monkeypatch.setattr(pl, "split_package_list", _fake_split)
     return _fake_split
 
+def fake_nearest_neighbor(monkeypatch, distance=42.0, route=None):
+    def _fake(pkg_list):
+        return distance, route or pkg_list
+
+    monkeypatch.setattr(pl, "nearest_neighbor", _fake)
+    return _fake
+
 def make_pkg(id_, group=None, priority=None):
     return package.Package(id_, "Address", "City", "ST", 99999, None, 1.0, None, "at_the_hub", None, None, group, priority)
 
@@ -209,9 +216,114 @@ class TestHelpers:
         for i in range(3):
             assert truck_list[i] is twac[i]
 
-    #def test_build_feasible_routes(self)
+    def test_build_feasible_routes_returns_single_feasible_route(self, monkeypatch):
+        t1 = truck.Truck(0)
+        t1.package_list = [make_pkg(1)]
+        t1.speed_mph = 18
+        working_package_list = [make_pkg(2), make_pkg(3)]
 
-    #def test_choose_best_option(self)
+        fake_nearest_neighbor(monkeypatch, distance=10.0, route=["r1", "r2"])
+        monkeypatch.setattr(pl, "check_route_feasibility", lambda route, speed, v: True)
+
+        result = pl.build_feasible_routes([t1], working_package_list, verbosity="0")
+
+        assert len(result) == 1
+        test_truck, test_route, test_distance = result[0]
+        assert test_truck is t1
+        assert test_route == ["r1", "r2"]
+        assert test_distance == 10.0
+
+    def test_build_feasible_routes_returns_multiple_feasible_routes(self, monkeypatch):
+        t1, t2 = truck.Truck(0), truck.Truck(1)
+        t1.package_list = [make_pkg(1)]
+        t2.package_list = [make_pkg(2)]
+        t1.speed_mph = t2.speed_mph = 18
+        working_package_list = [make_pkg(3)]
+
+        fake_nearest_neighbor(monkeypatch, distance=10.0, route=["_"])
+        monkeypatch.setattr(pl, "check_route_feasibility", lambda route, speed, v: True)
+
+        result = pl.build_feasible_routes([t1, t2], working_package_list, verbosity="0")
+        assert len(result) == 2
+        trucks_in_result = {t.truck_id for t, _, _ in result}
+        assert trucks_in_result == {0, 1}
+
+    def test_build_feasible_routes_filters_out_infeasible_routes(self, monkeypatch):
+        t1, t2 = truck.Truck(0), truck.Truck(1)
+        t1.package_list = [make_pkg(1)]
+        t2.package_list = [make_pkg(2)]
+        t1.speed_mph = t2.speed_mph = 18
+        working_package_list = [make_pkg(3)]
+
+        fake_nearest_neighbor(monkeypatch, distance=10.0, route=["r1"])
+        calls = {"count": 0}
+        def fake_check_route_feasibility(route, speed, v):
+            calls["count"] += 1
+            return calls["count"] == 1
+        monkeypatch.setattr(pl, "check_route_feasibility", fake_check_route_feasibility)
+
+        result = pl.build_feasible_routes([t1, t2], working_package_list, verbosity="0")
+
+        assert len(result) == 1
+        assert result[0][0] is t1
+
+    def test_build_feasible_routes_raises_when_no_feasible_routes(self, monkeypatch):
+        t1 = truck.Truck(0)
+        working_package_list = [make_pkg(1)]
+
+        fake_nearest_neighbor(monkeypatch, distance=10.0, route=["r1"])
+        monkeypatch.setattr(pl, "check_route_feasibility", lambda route, speed, v: False)
+
+        with pytest.raises(SystemExit):
+            result = pl.build_feasible_routes([t1], working_package_list, verbosity="0")
+
+    def test_choose_best_option_returns_the_only_route_when_exactly_one_feasible_route_exists(self):
+        t1, wpl, dist = truck.Truck(0), [make_pkg(1), make_pkg(2)], 10.0
+        feasible_routes = [(t1, wpl, dist)]
+
+        result = pl.choose_best_option(feasible_routes)
+
+        assert result == (t1, wpl, dist)
+        res_truck, res_wpl, res_dist = result
+        assert res_truck is t1
+        packages_in_result = {p.package_id for p in res_wpl}
+        assert packages_in_result == {1, 2}
+        assert res_dist == 10.0
+
+    def test_choose_best_option_selects_route_that_minimizes_distance_when_multiple_feasible_routes_exist(self):
+        t1, wpl1, dist1 = truck.Truck(0), [make_pkg(1)], 15.0
+        t2, wpl2, dist2 = truck.Truck(1), [make_pkg(2)], 10.0
+        t1.route_distance = t2.route_distance = 0
+
+        feasible_routes = [(t1, wpl1, dist1), (t2, wpl2, dist2)]
+
+        result = pl.choose_best_option(feasible_routes)
+
+        res_truck, res_wpl, res_dist = result
+        assert res_truck is t2
+        packages_in_result = {p.package_id for p in res_wpl}
+        assert packages_in_result == {2}
+        assert res_dist == 10.0
+
+    def test_choose_best_option_handles_ties_by_choosing_first_minimum_distance_option(self):
+        t1, wpl1, dist1 = truck.Truck(0), [make_pkg(1)], 10.0
+        t2, wpl2, dist2 = truck.Truck(1), [make_pkg(2)], 10.0
+        t1.route_distance = t2.route_distance = 0
+
+        feasible_routes = [(t1, wpl1, dist1), (t2, wpl2, dist2)]
+
+        result_truck, _, _ = pl.choose_best_option(feasible_routes)
+
+        assert result_truck is t1
+
+    def test_choose_best_option_correctly_computes_total_distance_using_existing_truck_route_distance_values(self):
+        t1, wpl, dist = truck.Truck(0), [make_pkg(1), make_pkg(2)], 15.0
+        t1.route_distance = 10.0
+        feasible_routes = [(t1, wpl, dist)]
+
+        _, _, result_distance = pl.choose_best_option(feasible_routes)
+
+        assert result_distance == 15.0
 
     def test_get_candidate_trucks_returns_trucks_assigned_to_specified_drivers_when_drivers_list_is_provided(self):
         drivers = ["Ren", "Stimpy"]

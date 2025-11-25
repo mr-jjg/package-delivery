@@ -229,7 +229,7 @@ def build_feasible_routes(available_trucks, working_package_list, verbosity):
             feasible_routes_list.append((truck, test_route, test_route_distance))
 
     if not feasible_routes_list:
-        #if verbosity == "1": vprint(f"\nThere are no feasible routes. Exiting at 'load_packages' at iteration {count}.", verbosity)
+        if verbosity == "1": vprint(f"\nThere are no feasible routes. Exiting at 'load_packages' at iteration {count}.", verbosity)
         raise SystemExit(1)
 
     return feasible_routes_list
