@@ -8,8 +8,6 @@ from fleet import Fleet
 from package_handler import PackageHandler
 from package_loader import PackageLoader
 from delivery_handler import DeliveryHandler
-import threading # https://www.geeksforgeeks.org/multithreading-python-set-1/
-from user_interface import launch_ui
 import argparse
 
 
@@ -244,15 +242,6 @@ def run(num_trucks, num_drivers):
     if VERBOSITY == "1":
         print("\nThe delivery list:\n")
         delivery_handler.print_delivery_list()
-
-
-    '''
-    # Create a thread for the user interface
-    print("\nLaunching the user interface...")
-    user_interface = threading.Thread(target=launch_ui, args=(fleet, delivery_handler))
-
-    user_interface.start()
-    '''
 
     # Deliver the packages.
     print("\nDelivering the packages in accelerated real-time...\n")
