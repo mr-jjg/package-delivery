@@ -797,6 +797,128 @@ class TestLoadEmptyTrucksWithDrivers:
         assert truck_b.current_capacity == truck_b.maximum_capacity - 1
         assert truck_b.package_list[0].truck == 1
 
-'''
+@pytest.fixture
+def load_packages_world(monkeypatch):
+    test_fleet = fleet.Fleet(1)
+    tr = test_fleet.truck_list[0]
+    tr.maximum_capacity = 10
+    tr.current_capacity = 10
+    tr.route_distance = 123.45
+
+    monkeypatch.setattr(pl, "get_candidate_trucks", lambda fleet_obj, drivers=None: fleet_obj.truck_list,)
+    monkeypatch.setattr(pl, "get_trucks_with_available_capacity", lambda trucks, needed: trucks,)
+    monkeypatch.setattr(pl, "adjust_working_list_for_capacity", lambda truck_list, groups, working_list, verbosity: (working_list, truck_list),)
+
+    def fake_build_working_package_list(groups):
+        return groups.pop(0)
+
+    monkeypatch.setattr(pl, "build_working_package_list", fake_build_working_package_list,)
+    monkeypatch.setattr(pl, "nearest_neighbor", lambda pkg_list: (0.0, pkg_list),)
+
+    def fake_build_feasible_routes(available_trucks, working_package_list, verbosity):
+        t = available_trucks[0]
+        return [(t, working_package_list, 10.0)]
+
+    monkeypatch.setattr(pl, "build_feasible_routes", fake_build_feasible_routes,)
+    monkeypatch.setattr(pl, "choose_best_option", lambda routes: routes[0],)
+
+    def fake_load_optimal_truck(option):
+        t, route, distance = option
+        t.package_list = route
+        t.current_capacity = t.maximum_capacity - len(route)
+        t.route_distance = distance
+
+    monkeypatch.setattr(pl, "load_optimal_truck", fake_load_optimal_truck,)
+
+    loader = pl.PackageLoader()
+
+    class World:
+        pass
+
+    world = World()
+    world.loader = loader
+    world.fleet = test_fleet
+    world.truck = tr
+
+    return world
+
 class TestLoadPackages:
-'''
+    def test_stops_when_package_groups_empty(self, load_packages_world):
+        world = load_packages_world
+
+        package_groups = [[make_pkg(1, 0 , 0), make_pkg(2, 0, 0)]]
+
+        world.loader.load_packages(world.fleet, package_groups, verbosity="0")
+
+        assert package_groups == []
+        assert len(world.truck.package_list) == 2
+        assert world.truck.route_distance == 0
+
+    def test_load_packages_stops_when_no_trucks_available(self, load_packages_world):
+        world = load_packages_world
+        world.fleet = fleet.Fleet(0)
+
+        package_groups = [[make_pkg(1, 0 , 0), make_pkg(2, 0, 0)]]
+
+        world.loader.load_packages(world.fleet, package_groups, verbosity="0")
+
+        assert len(package_groups) == 1
+
+    def test_load_packages_removes_truck_when_capacity_hits_zero(self, load_packages_world):
+        world = load_packages_world
+        tr = world.fleet.truck_list[0]
+        tr.current_capacity = 2
+        tr.maximum_capacity = 2
+
+        package_groups = [[make_pkg(1, 0 , 0), make_pkg(2, 0, 0)]]
+
+        world.loader.load_packages(world.fleet, package_groups, verbosity="0")
+
+        assert package_groups == []
+        assert tr.current_capacity == 0
+
+    def test_load_packages_resets_route_distance_for_entire_fleet(self, load_packages_world):
+        world = load_packages_world
+        tr = world.fleet.truck_list[0]
+        tr.route_distance = 123
+
+        package_groups = [[make_pkg(1, 0 , 0), make_pkg(2, 0, 0)]]
+
+        world.loader.load_packages(world.fleet, package_groups, verbosity="0")
+
+        assert tr.route_distance == 0
+
+    def test_load_packages_no_candidate_trucks_does_not_process_any_groups(self, load_packages_world, monkeypatch):
+        world = load_packages_world
+
+        package_groups = [[make_pkg(1, 0 , 0), make_pkg(2, 0, 0)]]
+
+        monkeypatch.setattr(pl, "get_candidate_trucks", lambda fleet_obj, drivers=None: [],)
+
+        world.loader.load_packages(world.fleet, package_groups, verbosity="0")
+
+        assert len(package_groups) == 1
+
+    def test_load_packages_propagates_systemexit_when_no_feasible_routes(self, load_packages_world, monkeypatch):
+        world = load_packages_world
+
+        package_groups = [[make_pkg(1, 0 , 0), make_pkg(2, 0, 0)]]
+
+        def exit_build_feasible_routes(*args, **kwargs):
+            raise SystemExit(1)
+
+        monkeypatch.setattr(pl, "build_feasible_routes", exit_build_feasible_routes,)
+
+        with pytest.raises(SystemExit):
+            world.loader.load_packages(world.fleet, package_groups, verbosity="0")
+
+    def test_load_packages_loads_packages_into_optimal_truck(self, load_packages_world):
+        world = load_packages_world
+        tr = world.fleet.truck_list[0]
+        packages = [make_pkg(1, 0 , 0), make_pkg(2, 0, 0)]
+
+        package_groups = [packages]
+
+        world.loader.load_packages(world.fleet, package_groups, verbosity="0")
+
+        assert tr.package_list == packages
