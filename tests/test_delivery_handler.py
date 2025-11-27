@@ -4,6 +4,7 @@ import pytest
 from datetime import time
 import delivery_handler as dh
 import fleet
+import package
 import truck
 
 def make_fleet_with_two_trucks():
@@ -19,6 +20,9 @@ def make_fleet_four_trucks_even_ids_have_drivers():
         if tr.truck_id % 2 == 0:
             tr.driver = f"Driver-{tr.truck_id}"
     return fl
+
+def make_pkg(id_):
+    return package.Package(id_, "Address", "City", "ST", 99999, None, 1.0, None, "at_the_hub", None, None, 0, 0)
 
 #class TestBuildDeliveryList:
 
@@ -109,7 +113,41 @@ class TestHelper:
         
         assert call_count["count"] == 2
 
-    #def test_set_packages_en_route(self):
+    def test_set_packages_en_route_sets_all_packages_to_en_route(self):
+        packages = [make_pkg(0), make_pkg(1), make_pkg(2)]
+
+        dh.set_packages_en_route(packages)
+
+        for pkg in packages:
+            assert pkg.delivery_status == "en_route"
+
+    def test_set_packages_en_route_overwrites_existing_status_values(self):
+        pkg = make_pkg(0)
+        before = pkg.delivery_status
+
+        dh.set_packages_en_route([pkg])
+
+        assert before != "en_route"
+        assert pkg.delivery_status == "en_route"
+
+    def test_set_packages_en_route_handles_empty_package_list(self):
+        empty_list = []
+
+        dh.set_packages_en_route(empty_list)
+
+        assert empty_list == []
+
+    def test_set_packages_en_route_does_not_modify_other_package_fields(self):
+        def snapshot(pkg):
+            return (pkg.address, pkg.city, pkg.state, pkg.zip_code, pkg.delivery_deadline, pkg.weight_kilo, pkg.special_note, pkg.time_of_delivery, pkg.truck, pkg.group, pkg.priority)
+
+        pkg = make_pkg(0)
+        before = snapshot(pkg)
+
+        dh.set_packages_en_route([pkg])
+
+        after = snapshot(pkg)
+        assert before == after
 
     #def test_unpack_delivery_tuple(self):
 
