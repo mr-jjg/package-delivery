@@ -81,7 +81,7 @@ class DeliveryHandler:
         
         while delivery_queue:
             delivery_tuple = delivery_queue.pop(0)
-            truck, package, time, action = unpack_delivery_tuple(delivery_tuple)
+            truck, package, time, action = delivery_tuple
             time_str = time.strftime("%H:%M")
             
             # Truck leaving the warehouse
@@ -197,8 +197,8 @@ class DeliveryHandler:
     
     def print_delivery_list(self):
         #print(f"Length: {len(self.delivery_list)}") # DEBUG ONLY
-        for tuple in self.delivery_list:
-            truck, package, time, action = unpack_delivery_tuple(tuple)
+        for delivery_tuple in self.delivery_list:
+            truck, package, time, action = delivery_tuple
             
             time_str = time.strftime("%H:%M")
             truck_id = f"{truck.truck_id + 1}"
@@ -218,8 +218,8 @@ class DeliveryHandler:
                 copied_packages.append(copied_pkg)
         
         # Iterate through the copied_packages and set attributes
-        for tuple in self.delivery_list:
-            truck, package, time, action = unpack_delivery_tuple(tuple)
+        for delivery_tuple in self.delivery_list:
+            truck, package, time, action = delivery_tuple
             
             if time > time_input:
                 break
@@ -271,10 +271,6 @@ def separate_trucks_by_driver_status(fleet):
 def set_packages_en_route(package_list):
     for package in package_list:
         package.delivery_status = 'en_route'
-
-def unpack_delivery_tuple(tuple):
-    truck, package, time, action = tuple
-    return truck, package, time, action
     
 def update_previous_location(prev_locations_list, truck_id, address):
     for i, (id, _) in enumerate(prev_locations_list):
