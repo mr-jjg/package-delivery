@@ -149,9 +149,74 @@ class TestHelper:
         after = snapshot(pkg)
         assert before == after
 
-    #def test_unpack_delivery_tuple(self):
+    def test_update_previous_location_appends_new_entry_when_list_is_empty(self):
+        previous_locations = []
+        truck_id = 0
+        address = "Address"
 
-    #def test_update_previous_location(self):
+        dh.update_previous_location(previous_locations, truck_id, address)
+
+        assert len(previous_locations) == 1
+        assert previous_locations == [(truck_id, address)]
+
+    def test_update_previous_location_appends_new_entry_for_new_truck_id(self):
+        previous_locations = [(0, "Address1")]
+        truck_id = 1
+        address = "Address2"
+
+        dh.update_previous_location(previous_locations, truck_id, address)
+
+        assert len(previous_locations) == 2
+        assert previous_locations[1] == (truck_id, address)
+
+    def test_update_previous_location_updates_existing_entry_for_same_truck_id(self):
+        previous_locations = [(0, "OldAddress")]
+        truck_id = 0
+        address = "NewAddress"
+
+        dh.update_previous_location(previous_locations, truck_id, address)
+
+        assert len(previous_locations) == 1
+        assert previous_locations[0] == (truck_id, address)
+
+    def test_update_previous_location_preserves_order_when_updating_existing_entry(self):
+        first = (0, "First")
+        second = (1, "Second")
+        previous_locations = [(0, "First"), (1, "Second")]
+        truck_id = 1
+        address = "NewSecond"
+
+        dh.update_previous_location(previous_locations, truck_id, address)
+
+        assert len(previous_locations) == 2
+        assert previous_locations[0] == first
+        assert previous_locations[1] == (truck_id, address)
+
+    def test_update_previous_location_mutates_list_in_place(self):
+        original = (0, "Address1")
+        previous_locations = [original]
+        truck_id = 1
+        address = "Address2"
+
+        before_id = id(previous_locations)
+        dh.update_previous_location(previous_locations, truck_id, address)
+
+        assert id(previous_locations) == before_id
+
+    @pytest.mark.parametrize("truck_id", [
+        "String",
+        1.0,
+        (True, False),
+        frozenset([1, 2]),
+        None,
+        [1, 2, 3],
+        {"id": 5},
+    ])
+    def test_update_previous_location_accepts_any_truck_id_type(self, truck_id):
+        previous_locations = []
+
+        dh.update_previous_location(previous_locations, truck_id, "Address")
+        assert previous_locations == [(truck_id, "Address")]
 
     #def test_get_previous_location(self):
 
