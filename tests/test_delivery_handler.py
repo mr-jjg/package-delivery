@@ -218,7 +218,26 @@ class TestHelper:
         dh.update_previous_location(previous_locations, truck_id, "Address")
         assert previous_locations == [(truck_id, "Address")]
 
-    #def test_get_previous_location(self):
+    def test_get_previous_location_returns_address_when_truck_id_exists(self):
+        previous_locations = [(0, "Address1"), (1, "Address2")]
+
+        address = dh.get_previous_location(previous_locations, 1)
+
+        assert address == "Address2"
+
+    def test_get_previous_location_returns_none_when_truck_id_not_present(self):
+        previous_locations = [(0, "Address1"), (1, "Address2")]
+
+        address = dh.get_previous_location(previous_locations, 2)
+
+        assert address is None
+
+    def test_get_previous_location_returns_none_when_prev_locations_list_empty(self):
+        previous_locations = []
+
+        address = dh.get_previous_location(previous_locations, 1)
+
+        assert address is None
 
     #def test_update_previous_time(self):
 
