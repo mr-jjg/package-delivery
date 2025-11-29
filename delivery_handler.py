@@ -285,17 +285,17 @@ def get_previous_location(prev_locations_list, truck_id):
             return address
     return None
 
-def update_previous_time(previous_times_list, truck_id, time):
+def update_previous_time(previous_times_list, truck_id, timestamp):
     for i, (id, _) in enumerate(previous_times_list):
         if id == truck_id:
-            previous_times_list[i] = (truck_id, time)
+            previous_times_list[i] = (truck_id, timestamp)
             return
-    previous_times_list.append((truck_id, time))
+    previous_times_list.append((truck_id, timestamp))
 
 def get_previous_time(previous_times_list, truck_id):
-    for id, time in previous_times_list:
+    for id, timestamp in previous_times_list:
         if id == truck_id:
-            return time
+            return timestamp
     return None
 
 def copy_package(original_package, truck_id):
@@ -319,10 +319,10 @@ def get_address_at_time(package, time_input):
     # Return address at time of input
     address_at_time_input = package.address_history[0][1]
     
-    for time, address in package.address_history:
-        if time is not None and time <= time_input:
+    for timestamp, address in package.address_history:
+        if timestamp is not None and timestamp <= time_input:
             address_at_time_input = address
-        elif time is not None and time > time_input:
+        elif timestamp is not None and timestamp > time_input:
             break
     return address_at_time_input
 #jjg
