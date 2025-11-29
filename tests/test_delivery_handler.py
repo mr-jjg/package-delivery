@@ -182,7 +182,7 @@ class TestHelper:
     def test_update_previous_location_preserves_order_when_updating_existing_entry(self):
         first = (0, "First")
         second = (1, "Second")
-        previous_locations = [(0, "First"), (1, "Second")]
+        previous_locations = [first, second]
         truck_id = 1
         address = "NewSecond"
 
@@ -216,6 +216,7 @@ class TestHelper:
         previous_locations = []
 
         dh.update_previous_location(previous_locations, truck_id, "Address")
+
         assert previous_locations == [(truck_id, "Address")]
 
     def test_get_previous_location_returns_address_when_truck_id_exists(self):
@@ -239,9 +240,95 @@ class TestHelper:
 
         assert address is None
 
-    #def test_update_previous_time(self):
+    def test_update_previous_time_appends_new_entry_when_list_is_empty(self):
+        previous_times = []
+        truck_id = 0
+        timestamp = time(8, 0)
 
-    #def test_get_previous_time(self):
+        dh.update_previous_time(previous_times, truck_id, timestamp)
+
+        assert len(previous_times) == 1
+        assert previous_times == [(truck_id, timestamp)]
+
+    def test_update_previous_time_appends_new_entry_for_new_truck_id(self):
+        previous_times = [(0, time(8, 0))]
+        truck_id = 1
+        timestamp = time(8, 30)
+
+        dh.update_previous_time(previous_times, truck_id, timestamp)
+
+        assert len(previous_times) == 2
+        assert previous_times[1] == (truck_id, timestamp)
+
+    def test_update_previous_time_updates_existing_entry_for_same_truck_id(self):
+        previous_times = [(0, time(8, 30))]
+        truck_id = 0
+        timestamp = time(18, 30)
+
+        dh.update_previous_time(previous_times, truck_id, timestamp)
+
+        assert len(previous_times) == 1
+        assert previous_times[0] == (truck_id, timestamp)
+
+    def test_update_previous_time_preserves_order_when_updating_existing_entry(self):
+        first = (0, time(1, 0))
+        second = (1, time(2, 0))
+        previous_times = [first, second]
+        truck_id = 1
+        timestamp = time(3, 0)
+
+        dh.update_previous_time(previous_times, truck_id, timestamp)
+
+        assert len(previous_times) == 2
+        assert previous_times[0] == first
+        assert previous_times[1] == (truck_id, timestamp)
+
+    def test_update_previous_time_mutates_list_in_place(self):
+        original = (0, time(8, 0))
+        previous_times = [original]
+        truck_id = 1
+        timestamp = time(9, 30)
+
+        before_id = id(previous_times)
+        dh.update_previous_time(previous_times, truck_id, timestamp)
+
+        assert id(previous_times) == before_id
+
+    @pytest.mark.parametrize("truck_id", [
+        "String",
+        1.0,
+        (True, False),
+        frozenset([1, 2]),
+        None,
+        [1, 2, 3],
+        {"id": 5},
+    ])
+    def test_update_previous_time_accepts_any_truck_id_type(self, truck_id):
+        previous_times = []
+
+        dh.update_previous_time(previous_times, truck_id, time(8, 30))
+        assert previous_times == [(truck_id, time(8, 30))]
+
+    def test_get_previous_time_returns_time_when_truck_id_exists(self):
+        previous_times = [(0, time(1, 0)), (1, time(2, 0))]
+
+        timestamp = dh.get_previous_time(previous_times, 1)
+
+        assert timestamp == time(2, 0)
+
+    def test_get_previous_time_returns_none_when_truck_id_not_present(self):
+        previous_times = [(0, time(1, 0)), (1, time(2, 0))]
+
+        timestamp = dh.get_previous_time(previous_times, 2)
+
+        assert timestamp is None
+
+    def test_get_previous_time_returns_none_when_prev_times_list_empty(self):
+        previous_times = []
+
+        timestamp = dh.get_previous_time(previous_times, 1)
+
+        assert timestamp is None
 
     #def test_copy_package(self):
 
