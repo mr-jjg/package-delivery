@@ -371,4 +371,62 @@ class TestHelper:
         assert new_pkg.address_history == []
         assert id(new_pkg.address_history) != id(pkg.address_history)
 
-    #def test_get_address_at_time(self):
+    def test_get_address_at_time_returns_first_address_when_time_before_first_timestamp(self):
+        pkg = make_pkg(0)
+        pkg.address_history = [
+            (time(9, 0), "First Address"),
+            (time(10, 0), "Second Address"),
+            (time(11, 0), "Third Address"),
+        ]
+
+        address = dh.get_address_at_time(pkg, time(8, 30))
+
+        assert address == "First Address"
+
+    def test_get_address_at_time_returns_matching_address_for_exact_timestamp(self):
+        pkg = make_pkg(0)
+        pkg.address_history = [
+            (time(9, 0), "First Address"),
+            (time(10, 0), "Second Address"),
+            (time(11, 0), "Third Address"),
+        ]
+
+        address = dh.get_address_at_time(pkg, time(10, 0))
+
+        assert address == "Second Address"
+
+    def test_get_address_at_time_returns_most_recent_address_before_time_input(self):
+        pkg = make_pkg(0)
+        pkg.address_history = [
+            (time(9, 0), "First Address"),
+            (time(10, 0), "Second Address"),
+            (time(11, 0), "Third Address"),
+        ]
+
+        address = dh.get_address_at_time(pkg, time(10, 30))
+
+        assert address == "Second Address"
+
+    def test_get_address_at_time_returns_last_address_when_time_after_last_timestamp(self):
+        pkg = make_pkg(0)
+        pkg.address_history = [
+            (time(9, 0), "First Address"),
+            (time(10, 0), "Second Address"),
+            (time(11, 0), "Third Address"),
+        ]
+
+        address = dh.get_address_at_time(pkg, time(11, 30))
+
+        assert address == "Third Address"
+
+    def test_get_address_at_time_uses_first_address_when_first_timestamp_is_none(self):
+        pkg = make_pkg(0)
+        pkg.address_history = [
+            (None, "First Address"),
+            (time(10, 0), "Second Address"),
+            (time(11, 0), "Third Address"),
+        ]
+
+        address = dh.get_address_at_time(pkg, time(9, 30))
+
+        assert address == "First Address"
