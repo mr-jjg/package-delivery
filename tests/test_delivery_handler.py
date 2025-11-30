@@ -330,6 +330,45 @@ class TestHelper:
 
         assert timestamp is None
 
-    #def test_copy_package(self):
+    def test_copy_package_creates_new_package_with_copied_fields_and_overrides(self):
+        def snapshot(pkg):
+            return (pkg.address, pkg.city, pkg.state, pkg.zip_code, pkg.delivery_deadline, pkg.weight_kilo, pkg.special_note, pkg.group, pkg.priority)
+
+        pkg = make_pkg(0)
+        pkg.delivery_status = 'X'
+        pkg.time_of_delivery = 'X'
+        pkg.truck = '0'
+        before = snapshot(pkg)
+
+        new_pkg = dh.copy_package(pkg, 1)
+
+        after = snapshot(new_pkg)
+
+        assert new_pkg is not pkg
+        assert before == after
+        assert new_pkg.delivery_status == 'at_the_hub'
+        assert new_pkg.time_of_delivery is None
+        assert new_pkg.truck == 1
+
+    def test_copy_package_uses_separate_address_history_list(self):
+        pkg = make_pkg(0)
+        pkg.address_history = [(time(9, 0), "First Address"), (time(9, 30), "Second Address")]
+
+        new_pkg = dh.copy_package(pkg, 1)
+
+        assert new_pkg.address_history == pkg.address_history
+        assert id(new_pkg.address_history) != id(pkg.address_history)
+
+        new_pkg.address_history.append((time(10, 0), "Third Address"))
+        assert (time(10, 0), "Third Address") not in pkg.address_history
+
+    def test_copy_package_handles_empty_address_history(self):
+        pkg = make_pkg(0)
+        pkg.address_history = []
+
+        new_pkg = dh.copy_package(pkg, 1)
+
+        assert new_pkg.address_history == []
+        assert id(new_pkg.address_history) != id(pkg.address_history)
 
     #def test_get_address_at_time(self):
