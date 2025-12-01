@@ -37,35 +37,32 @@ class DeliveryHandler:
     def generate_delivery_timeline(self, truck_list):
         for truck in truck_list:
             route = truck.package_list
+            if not route:
+                continue
             
             #print(f"Truck {truck.truck_id + 1} route distance: {truck.route_distance}") # DEBUG ONLY
             
-            curr_pkg = route[0]
+            first_pkg = route[0]
             
             # Truck leaving the warehouse
-            departure_tuple = (truck, None, truck.departure_time, DeliveryAction.DEPART)
-            self.delivery_list.append(departure_tuple)
-            
+            self.delivery_list.append((truck, None, truck.departure_time, DeliveryAction.DEPART))
             
             # Delivery of first package departing from the warehouse
-            arr_time = get_arrival_time(truck.departure_time, truck.departure_address, curr_pkg.address, truck.speed_mph)
-            delivery_tuple = (truck, curr_pkg, arr_time, DeliveryAction.DELIVER)
-            self.delivery_list.append(delivery_tuple)
+            arr_time = get_arrival_time(truck.departure_time, truck.departure_address, first_pkg.address, truck.speed_mph)
+            self.delivery_list.append((truck, first_pkg, arr_time, DeliveryAction.DELIVER))
+
+            last_address = first_pkg.address
             
             # Delivery of the remaining packages on the truck
-            for i in range(1, len(route)):
-                curr_pkg = route[i]
-                next_pkg = route[i - 1]
-                
-                arr_time = get_arrival_time(arr_time, curr_pkg.address, next_pkg.address, truck.speed_mph)
-                delivery_tuple = (truck, curr_pkg, arr_time, DeliveryAction.DELIVER)
-                self.delivery_list.append(delivery_tuple)
+            for pkg in route[1:]:
+                arr_time = get_arrival_time(arr_time, last_address, pkg.address, truck.speed_mph)
+                self.delivery_list.append((truck, pkg, arr_time, DeliveryAction.DELIVER))
+                last_address = pkg.address
             
             # Truck returning to the warehouse
-            arr_time = get_arrival_time(arr_time, next_pkg.address, truck.departure_address, truck.speed_mph)
-            return_tuple = (truck, None, arr_time, DeliveryAction.RETURN)
+            arr_time = get_arrival_time(arr_time, last_address, truck.departure_address, truck.speed_mph)
             truck.return_time = arr_time
-            self.delivery_list.append(return_tuple)
+            self.delivery_list.append((truck, None, arr_time, DeliveryAction.RETURN))
             
             #print(f"Truck {truck.truck_id + 1} arriving back at the warehouse at {arr_time}") # DEBUG ONLY
         

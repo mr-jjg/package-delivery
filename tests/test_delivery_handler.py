@@ -26,7 +26,138 @@ def make_pkg(id_):
 
 #class TestBuildDeliveryList:
 
-#class TestGenerateDeliveryTimeline:
+class TestGenerateDeliveryTimeline:
+    def test_adds_depart_deliver_and_return_events_for_single_truck_single_package(self, monkeypatch):
+        tr = truck.Truck(0)
+        tr.package_list = [make_pkg(0)]
+        tr.departure_time = time(8, 0)
+        tr.departure_address = "Departure Address"
+
+        monkeypatch.setattr(dh, "get_arrival_time", lambda *_: time(8, 30))
+
+        handler = dh.DeliveryHandler()
+        handler.generate_delivery_timeline([tr])
+
+        assert len(handler.delivery_list) == 3
+        assert handler.delivery_list == [
+            (tr, None, time(8, 0), dh.DeliveryAction.DEPART),
+            (tr, tr.package_list[0], time(8, 30), dh.DeliveryAction.DELIVER),
+            (tr, None, time(8, 30), dh.DeliveryAction.RETURN)
+        ]
+
+    def test_sets_truck_return_time_to_time_from_return_event(self, monkeypatch):
+        tr = truck.Truck(0)
+        tr.package_list = [make_pkg(0)]
+        tr.departure_time = time(8, 0)
+        tr.departure_address = "Departure Address"
+
+        monkeypatch.setattr(dh, "get_arrival_time", lambda *_: time(8, 30))
+
+        handler = dh.DeliveryHandler()
+        handler.generate_delivery_timeline([tr])
+
+        assert tr.return_time == time(8, 30)
+
+    def test_adds_one_deliver_event_per_package_on_route(self, monkeypatch):
+        tr = truck.Truck(0)
+        tr.package_list = [make_pkg(i) for i in range(10)]
+        tr.departure_time = time(8, 0)
+        tr.departure_address = "Departure Address"
+
+        monkeypatch.setattr(dh, "get_arrival_time", lambda *_: time(8, 30))
+
+        handler = dh.DeliveryHandler()
+        handler.generate_delivery_timeline([tr])
+
+        delivered_total = sum([1 for delivery in handler.delivery_list if delivery[3] == dh.DeliveryAction.DELIVER])
+        assert delivered_total == len(tr.package_list)
+
+        delivered_pkgs = [delivery[1] for delivery in handler.delivery_list if delivery[3] == dh.DeliveryAction.DELIVER]
+        assert delivered_pkgs == tr.package_list
+
+    def test_calls_get_arrival_time_for_first_leg_with_departure_address_and_first_package_address(self, monkeypatch):
+        tr = truck.Truck(0)
+        first_pkg = make_pkg(0)
+        tr.package_list = [first_pkg]
+        tr.departure_time = time(8, 0)
+        tr.departure_address = "Departure Address"
+
+        calls = []
+        def fake_get_arrival_time(departure_time, start_point, end_point, speed_mph):
+            calls.append((departure_time, start_point, end_point, speed_mph))
+            return time(9, 15)
+
+        monkeypatch.setattr(dh, "get_arrival_time", fake_get_arrival_time)
+
+        handler = dh.DeliveryHandler()
+        handler.generate_delivery_timeline([tr])
+
+        departure_time, start_point, end_point, speed_mph = calls[0]
+        assert departure_time == tr.departure_time
+        assert start_point == tr.departure_address
+        assert end_point == first_pkg.address
+        assert speed_mph == tr.speed_mph
+
+        _, pkg_in_tup, timestamp, _ = handler.delivery_list[1]
+        assert pkg_in_tup is first_pkg
+        assert timestamp == time(9, 15)
+
+    def test_calls_get_arrival_time_for_each_subsequent_leg_starting_from_previous_arrival_time(self, monkeypatch):
+        tr = truck.Truck(0)
+        tr.package_list = [make_pkg(i) for i in range(3)]
+        tr.departure_time = time(8, 0)
+        tr.departure_address = "Departure Address"
+
+        calls = []
+        returns = []
+        sentinels = [object() for _ in range(10)]
+
+        def fake_get_arrival_time(departure_time, start_point, end_point, speed_mph):
+            idx = len(calls)
+            calls.append((departure_time, start_point, end_point, speed_mph))
+            ret = sentinels[idx]
+            returns.append(ret)
+            return ret
+
+        monkeypatch.setattr(dh, "get_arrival_time", fake_get_arrival_time)
+
+        handler = dh.DeliveryHandler()
+        handler.generate_delivery_timeline([tr])
+
+        assert len(calls) >= 2
+        for i in range(1, len(calls)):
+            departure_time, _, _, _ = calls[i]
+            assert departure_time is returns[i - 1]
+
+    def test_calls_get_arrival_time_for_each_subsequent_leg_with_previous_and_current_package_addresses(self, monkeypatch):
+        tr = truck.Truck(0)
+        tr.package_list = [make_pkg(i) for i in range(3)]
+        tr.departure_time = time(8, 0)
+        tr.departure_address = "Departure Address"
+        for i, pkg in enumerate(tr.package_list):
+            pkg.address = f"Address {i}"
+
+        calls = []
+        def fake_get_arrival_time(departure_time, start_point, end_point, speed_mph):
+            calls.append((departure_time, start_point, end_point, speed_mph))
+            return object()
+
+        monkeypatch.setattr(dh, "get_arrival_time", fake_get_arrival_time)
+
+        handler = dh.DeliveryHandler()
+        handler.generate_delivery_timeline([tr])
+
+        route = tr.package_list
+        assert len(calls) == len(route) + 1
+
+        for leg_index in range(1, len(route)):
+            _, start_point, end_point, _ = calls[leg_index]
+
+            prev_pkg = route[leg_index - 1]
+            curr_pkg = route[leg_index]
+
+            assert start_point == prev_pkg.address
+            assert end_point == curr_pkg.address
 
 #class TestDeliverPackages:
 
