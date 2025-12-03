@@ -159,6 +159,72 @@ class TestGenerateDeliveryTimeline:
             assert start_point == prev_pkg.address
             assert end_point == curr_pkg.address
 
+    def test_calls_get_arrival_time_for_return_leg_with_last_package_address_and_departure_address(self, monkeypatch):
+        tr = truck.Truck(0)
+        tr.package_list = [make_pkg(0), make_pkg(1)]
+        tr.departure_time = time(8, 0)
+        tr.departure_address = "Warehouse"
+        for i, pkg in enumerate(tr.package_list):
+            pkg.address = f"Address {i}"
+
+        calls = []
+        def fake_get_arrival_time(departure_time, start_point, end_point, speed_mph):
+            calls.append((departure_time, start_point, end_point, speed_mph))
+            return time(9, 0)
+
+        monkeypatch.setattr(dh, "get_arrival_time", fake_get_arrival_time)
+
+        handler = dh.DeliveryHandler()
+        handler.generate_delivery_timeline([tr])
+
+        assert len(calls) > 1
+        _, last_pkg_addr, departure_address, _ = calls[-1]
+        assert last_pkg_addr == "Address 1"
+        assert departure_address == "Warehouse"
+        assert tr.return_time == time(9, 0)
+
+    def test_appends_events_to_existing_delivery_list_without_clearing_it(self, monkeypatch):
+        tr = truck.Truck(0)
+        tr.package_list = [make_pkg(0)]
+        tr.departure_time = time(8, 0)
+        tr.departure_address = "Warehouse"
+        tr.package_list[0].address = "Pkg Address"
+
+        calls = []
+        def fake_get_arrival_time(departure_time, start_point, end_point, speed_mph):
+            calls.append((departure_time, start_point, end_point, speed_mph))
+            return object()
+
+        monkeypatch.setattr(dh, "get_arrival_time", fake_get_arrival_time)
+
+        handler = dh.DeliveryHandler()
+        sentinal = ("truck", "Package", "Arrival time", "Action")
+        handler.delivery_list.append(sentinal)
+        handler.generate_delivery_timeline([tr])
+
+        assert handler.delivery_list[0] is sentinal
+        assert len(handler.delivery_list) == 4
+
+    def test_does_not_modify_truck_departure_time_values(self, monkeypatch):
+        tr0 = truck.Truck(0)
+        tr1 = truck.Truck(1)
+        tr0.package_list = [make_pkg(0), make_pkg(1)]
+        tr1.package_list = [make_pkg(2), make_pkg(3)]
+        test_departure_time = time(8, 0)
+        tr0.departure_time = test_departure_time
+        tr1.departure_time = test_departure_time
+
+        def fake_get_arrival_time(departure_time, start_point, end_point, speed_mph):
+            return time(9, 0)
+
+        monkeypatch.setattr(dh, "get_arrival_time", fake_get_arrival_time)
+
+        handler = dh.DeliveryHandler()
+        handler.generate_delivery_timeline([tr0, tr1])
+
+        assert tr0.departure_time is test_departure_time
+        assert tr1.departure_time is test_departure_time
+
 #class TestDeliverPackages:
 
 #class TestPrintDeliveryList:
