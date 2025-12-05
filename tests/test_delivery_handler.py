@@ -328,6 +328,13 @@ class TestGenerateDeliveryTimeline:
         assert tr0.departure_time is test_departure_time
         assert tr1.departure_time is test_departure_time
 
+#class TestActionHandlers:
+    #def test_handle_delivery_action_departed(self):
+
+    #def test_handle_delivery_action_delivered(self):
+
+    #def test_handle_delivery_action_returned():
+
 #class TestDeliverPackages:
 
 #class TestPrintDeliveryList:

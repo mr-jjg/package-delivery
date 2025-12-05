@@ -70,9 +70,9 @@ class DeliveryHandler:
     # This delivers the packages, and simulated accelerated real time. Trucks are updated dynamically by storing updated values in the previous_locations and previous_times lists, and recalculating mid-method. Packages with the wrong addresses are handled by dynamically checking for corrected addresses at the end of each while loop.
     def deliver_packages(self, fleet):
         free_driver = None
-        previous_locations = []  # List of tuples for updating route_distances per truck: (truck_id, last_address)
-        previous_times = []      # List of tuples for tracking last_time per truck: (truck_id, last_time)
-        
+        self.previous_locations = []  # List of tuples for updating route_distances per truck: (truck_id, last_address)
+        self.previous_times = []      # List of tuples for tracking last_time per truck: (truck_id, last_time)
+
         # Iterate over a copy of the list so that the state of the delivery_list can be saved (and corrected)
         delivery_queue = self.delivery_list.copy()
         
@@ -87,69 +87,13 @@ class DeliveryHandler:
                 if truck.driver is None:
                     truck.driver = free_driver
                 
-                # Update the deliver_status of each package to 'en_route'
-                set_packages_en_route(truck.package_list)
-                
-                # Set starting point and starting time for tracking distance/real-time
-                update_previous_location(previous_locations, truck.truck_id, truck.departure_address)
-                update_previous_time(previous_times, truck.truck_id, truck.departure_time)
+                self.handle_delivery_action_departed(truck)
                 
                 print(f"{action.value:<9} {time_str} | Truck ID: {truck.truck_id + 1} | From: {truck.departure_address:<40}")
             
             # Delivery of the packages
             elif action == DeliveryAction.DELIVER:
-                last_location = get_previous_location(previous_locations, truck.truck_id)
-                last_time = get_previous_time(previous_times, truck.truck_id)
-                
-                # Check if package has a special note 'X' to correct address and compare with current time
-                if package.special_note and package.special_note[0] == 'X':
-                    correction_time = package.special_note[1]
-                    # A corrected address would likely be passed to the truck at the time of correction. A more realistic approach would include a corrected_addresses_list of tuples (package_id, corrected_address), which would then update the package dynamically. For the purposes of the project, I'm simply included the corrected address as part of the special note.
-                    correct_address = package.special_note[2]
-                    correct_city = package.special_note[3]
-                    correct_state = package.special_note[4]
-                    correct_zip_code = package.special_note[5]
-                    
-                    last_time = get_previous_time(previous_times, truck.truck_id)
-                    
-                    if last_time >= correction_time:
-                        print(f"  Address correction for package {package.package_id}. Old address: {package.address}")
-                        package.address = correct_address
-                        package.address_history.append((last_time, correct_address))
-                        package.city = correct_city
-                        package.state = correct_state
-                        package.zip_code = correct_zip_code
-                        print(f"  Rerouting to new address: {package.address}")
-                        
-                        for i, (truck_, package_, event_time, action_) in enumerate(self.delivery_list):
-                            if package_ and package_.package_id == package.package_id:
-                                package_.address = correct_address
-                                package_.city = correct_city
-                                package_.state = correct_state
-                                package_.zip_code = correct_zip_code
-                                self.delivery_list[i] = (truck_, package_, event_time, action)
-                
-                # Recalculate arrival time to account for any changes mid-route
-                new_time = get_arrival_time(last_time, last_location, package.address, truck.speed_mph)
-                time_str = new_time.strftime("%H:%M")
-                
-                # Simulate accelerated real-time
-                travel_minutes = get_travel_time_in_minutes(last_time, new_time)
-                simulate_real_time.sleep(travel_minutes / self.RATE)
-                #print(travel_time) # DEBUG ONLY
-                
-                # Update the truck's route distance
-                distance = get_distance(last_location, package.address)
-                truck.route_distance += distance
-                #print(f"Distance from {last_location} to {package.address}: {distance}") # DEBUG ONLY
-                
-                # Update truck's previous time and location
-                update_previous_location(previous_locations, truck.truck_id, package.address)
-                update_previous_time(previous_times, truck.truck_id, new_time)
-                
-                # Update the package's delivery attributes
-                package.delivery_status = 'delivered'
-                package.time_of_delivery = time
+                self.handle_delivery_action_delivered(time, package, truck)
                 
                 # Prepare strings for output
                 deadline_str = package.delivery_deadline.strftime("%H:%M") if package.delivery_deadline != package.EOD_TIME else 'EOD'
@@ -160,26 +104,7 @@ class DeliveryHandler:
             
             # Truck returning to the warehouse
             elif action == DeliveryAction.RETURN:
-                last_location = get_previous_location(previous_locations, truck.truck_id)
-                last_time = get_previous_time(previous_times, truck.truck_id)
-                
-                # Recalculate arrival time back to hub to account for any changes mid-route
-                new_time = get_arrival_time(last_time, last_location, truck.departure_address, truck.speed_mph)
-                time_str = new_time.strftime("%H:%M")
-                
-                distance = get_distance(last_location, truck.departure_address)
-                
-                truck.route_distance += distance
-                update_previous_location(previous_locations, truck.truck_id, truck.departure_address)
-                #print(f"Distance from {last_location} to {truck.departure_address}: {distance}") # DEBUG ONLY
-                
-                # Simulate accelerated real-time
-                travel_minutes = get_travel_time_in_minutes(last_time, new_time)
-                simulate_real_time.sleep(travel_minutes / self.RATE)
-                
-                # Update truck's previous time and location
-                update_previous_time(previous_times, truck.truck_id, new_time)
-                update_previous_location(previous_locations, truck.truck_id, truck.departure_address)
+                self.handle_delivery_action_returned(truck)
                 
                 # Driver has completed the route - add to available driver pool.
                 free_driver = truck.driver
@@ -187,10 +112,96 @@ class DeliveryHandler:
                 # Output
                 print(f"{action.value:<9} {time_str} | Truck ID: {truck.truck_id + 1} | From: {truck.departure_address:<40}")
         
+        self.previous_locations = []
+        self.previous_times = []
+
         print()
         for truck in fleet:
             print(f"Truck ID: {truck.truck_id + 1}, Final Route Distance: {truck.route_distance}")
         
+    def handle_delivery_action_departed(self, truck):
+        # Update the deliver_status of each package to 'en_route'
+        set_packages_en_route(truck.package_list)
+
+        # Set starting point and starting time for tracking distance/real-time
+        update_previous_location(self.previous_locations, truck.truck_id, truck.departure_address)
+        update_previous_time(self.previous_times, truck.truck_id, truck.departure_time)
+
+    def handle_delivery_action_delivered(self, time, package, truck):
+        last_location = get_previous_location(self.previous_locations, truck.truck_id)
+        last_time = get_previous_time(self.previous_times, truck.truck_id)
+
+        # Check if package has a special note 'X' to correct address and compare with current time
+        if package.special_note and package.special_note[0] == 'X':
+            correction_time = package.special_note[1]
+            # A corrected address would likely be passed to the truck at the time of correction. A more realistic approach would include a corrected_addresses_list of tuples (package_id, corrected_address), which would then update the package dynamically. For the purposes of the project, I'm simply included the corrected address as part of the special note.
+            correct_address = package.special_note[2]
+            correct_city = package.special_note[3]
+            correct_state = package.special_note[4]
+            correct_zip_code = package.special_note[5]
+
+            last_time = get_previous_time(self.previous_times, truck.truck_id)
+
+            if last_time >= correction_time:
+                print(f"  Address correction for package {package.package_id}. Old address: {package.address}")
+                package.address = correct_address
+                package.address_history.append((last_time, correct_address))
+                package.city = correct_city
+                package.state = correct_state
+                package.zip_code = correct_zip_code
+                print(f"  Rerouting to new address: {package.address}")
+
+                for i, (truck_, package_, event_time, action_) in enumerate(self.delivery_list):
+                    if package_ and package_.package_id == package.package_id:
+                        package_.address = correct_address
+                        package_.city = correct_city
+                        package_.state = correct_state
+                        package_.zip_code = correct_zip_code
+                        self.delivery_list[i] = (truck_, package_, event_time, action_)
+
+        # Recalculate arrival time to account for any changes mid-route
+        new_time = get_arrival_time(last_time, last_location, package.address, truck.speed_mph)
+        time_str = new_time.strftime("%H:%M")
+
+        # Simulate accelerated real-time
+        travel_minutes = get_travel_time_in_minutes(last_time, new_time)
+        simulate_real_time.sleep(travel_minutes / self.RATE)
+        #print(travel_time) # DEBUG ONLY
+
+        # Update the truck's route distance
+        distance = get_distance(last_location, package.address)
+        truck.route_distance += distance
+        #print(f"Distance from {last_location} to {package.address}: {distance}") # DEBUG ONLY
+
+        # Update truck's previous time and location
+        update_previous_location(self.previous_locations, truck.truck_id, package.address)
+        update_previous_time(self.previous_times, truck.truck_id, new_time)
+
+        # Update the package's delivery attributes
+        package.delivery_status = 'delivered'
+        package.time_of_delivery = time
+
+    def handle_delivery_action_returned(self, truck):
+        last_location = get_previous_location(self.previous_locations, truck.truck_id)
+        last_time = get_previous_time(self.previous_times, truck.truck_id)
+
+        # Recalculate arrival time back to hub to account for any changes mid-route
+        new_time = get_arrival_time(last_time, last_location, truck.departure_address, truck.speed_mph)
+        time_str = new_time.strftime("%H:%M")
+
+        distance = get_distance(last_location, truck.departure_address)
+
+        truck.route_distance += distance
+        update_previous_location(self.previous_locations, truck.truck_id, truck.departure_address)
+        #print(f"Distance from {last_location} to {truck.departure_address}: {distance}") # DEBUG ONLY
+
+        # Simulate accelerated real-time
+        travel_minutes = get_travel_time_in_minutes(last_time, new_time)
+        simulate_real_time.sleep(travel_minutes / self.RATE)
+
+        # Update truck's previous time and location
+        update_previous_time(self.previous_times, truck.truck_id, new_time)
+        update_previous_location(self.previous_locations, truck.truck_id, truck.departure_address)
     
     def print_delivery_list(self):
         #print(f"Length: {len(self.delivery_list)}") # DEBUG ONLY
