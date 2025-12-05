@@ -24,7 +24,107 @@ def make_fleet_four_trucks_even_ids_have_drivers():
 def make_pkg(id_):
     return package.Package(id_, "Address", "City", "ST", 99999, None, 1.0, None, "at_the_hub", None, None, 0, 0)
 
-#class TestBuildDeliveryList:
+class TestBuildDeliveryList:
+    def test_calls_separate_trucks_by_driver_status_with_fleet(self, monkeypatch):
+        fl, tr1, tr2 = make_fleet_with_two_trucks()
+
+        count, passed_fleet = 0, None
+        def fake_separate_trucks_by_driver_status(fleet_):
+            nonlocal count, passed_fleet
+            count += 1
+            passed_fleet = fleet_
+            return [tr1], [tr2]
+
+        monkeypatch.setattr(dh, "separate_trucks_by_driver_status", fake_separate_trucks_by_driver_status)
+
+        handler = dh.DeliveryHandler()
+        handler.build_delivery_list(fl)
+
+        assert count == 1
+        assert passed_fleet is fl
+
+    def test_calls_generate_delivery_timeline_first_with_available_trucks(self, monkeypatch):
+        fl, tr1, tr2 = make_fleet_with_two_trucks()
+        tr1.driver = "Leonard"
+
+        trucks =  {"available": [], "waiting": []}
+        def fake_generate_delivery_timeline(self, truck_list):
+            if all(tr.driver for tr in truck_list):
+                trucks["available"].append(list(truck_list))
+            else:
+                trucks["waiting"].append(list(truck_list))
+
+        monkeypatch.setattr(dh.DeliveryHandler, "generate_delivery_timeline", fake_generate_delivery_timeline)
+
+        handler = dh.DeliveryHandler()
+        handler.build_delivery_list(fl)
+
+        assert trucks["available"] == [[tr1]]
+        assert trucks["waiting"] == [[tr2]]
+        assert calls == ["available", "waiting"]
+
+    def test_sets_departure_time_for_waiting_trucks_to_earliest_return_time(self):
+        fl = fleet.Fleet(3)
+        tr1, tr2, tr3 = fl.truck_list
+        tr1.driver, tr2.driver = "Bill", "Ted"
+        tr1.return_time, tr2.return_time = time(8, 0), time(9, 0)
+
+        handler = dh.DeliveryHandler()
+        handler.build_delivery_list(fl)
+
+        assert tr3.departure_time == time(8, 0)
+
+    def test_does_not_change_departure_time_for_available_trucks(self, monkeypatch):
+        fl, tr1, tr2 = make_fleet_with_two_trucks()
+        tr1.driver, tr2.driver = "Bill", "Ted"
+
+        ititial_departure1 = tr1.departure_time = time(8, 0)
+        ititial_departure2 = tr2.departure_time = time(9, 0)
+
+        def fake_separate_trucks_by_driver_status(fleet_):
+            return [tr1, tr2], []
+
+        monkeypatch.setattr(dh, "separate_trucks_by_driver_status", fake_separate_trucks_by_driver_status)
+
+        def fake_generate_delivery_timeline(self, truck_list):
+            for tr in truck_list:
+                tr.return_time = time(10, 0)
+
+        monkeypatch.setattr(dh.DeliveryHandler, "generate_delivery_timeline", fake_generate_delivery_timeline)
+
+        handler = dh.DeliveryHandler()
+        handler.build_delivery_list(fl)
+
+        assert tr1.departure_time == ititial_departure1
+        assert tr2.departure_time == ititial_departure2
+
+    def test_build_delivery_list_sorts_delivery_list_by_time_after_generating_timelines(self, monkeypatch):
+        fl, tr1, tr2 = make_fleet_with_two_trucks()
+        tr1.driver = "Bill"
+        tr2.driver = "Ted"
+
+        def fake_separate_trucks_by_driver_status(fleet_):
+            return [tr1, tr2], []
+
+        monkeypatch.setattr(dh, "separate_trucks_by_driver_status", fake_separate_trucks_by_driver_status)
+
+        def fake_generate_delivery_timeline(self, truck_list):
+            if not truck_list: return
+            tr = truck_list[0]
+            self.delivery_list.extend([
+                (tr, None, time(10, 0), dh.DeliveryAction.DEPART),
+                (tr, None, time(9, 0), dh.DeliveryAction.DEPART),
+                (tr, None, time(11, 0), dh.DeliveryAction.DEPART),
+            ])
+
+        monkeypatch.setattr(dh.DeliveryHandler, "generate_delivery_timeline", fake_generate_delivery_timeline)
+
+        handler = dh.DeliveryHandler()
+        handler.build_delivery_list(fl)
+
+        times = [delivery[2] for delivery in handler.delivery_list]
+
+        assert times == [time(9, 0), time(10, 0), time(11, 0)]
 
 class TestGenerateDeliveryTimeline:
     def test_adds_depart_deliver_and_return_events_for_single_truck_single_package(self, monkeypatch):
