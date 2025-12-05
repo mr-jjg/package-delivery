@@ -47,11 +47,14 @@ class TestBuildDeliveryList:
         fl, tr1, tr2 = make_fleet_with_two_trucks()
         tr1.driver = "Leonard"
 
-        trucks =  {"available": [], "waiting": []}
+        trucks = {"available": [], "waiting": []}
+        calls = []
         def fake_generate_delivery_timeline(self, truck_list):
             if all(tr.driver for tr in truck_list):
+                calls.append("available")
                 trucks["available"].append(list(truck_list))
             else:
+                calls.append("waiting")
                 trucks["waiting"].append(list(truck_list))
 
         monkeypatch.setattr(dh.DeliveryHandler, "generate_delivery_timeline", fake_generate_delivery_timeline)
