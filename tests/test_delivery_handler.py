@@ -328,8 +328,33 @@ class TestGenerateDeliveryTimeline:
         assert tr0.departure_time is test_departure_time
         assert tr1.departure_time is test_departure_time
 
-#class TestActionHandlers:
-    #def test_handle_delivery_action_departed(self):
+class TestActionHandlers:
+    def test_handle_delivery_action_departed_sets_all_packages_en_route(self):
+        tr = truck.Truck(0)
+        tr.package_list = [make_pkg(i) for i in range(10)]
+
+        handler = dh.DeliveryHandler()
+        handler.handle_delivery_action_departed(tr)
+
+        assert all([pkg.delivery_status == 'en_route' for pkg in tr.package_list])
+
+    def test_handle_delivery_action_departed_updates_previous_location_with_departure_address(self):
+        tr = truck.Truck(0)
+        tr.departure_address = "5018 W. Montrose Ave"
+
+        handler = dh.DeliveryHandler()
+        handler.handle_delivery_action_departed(tr)
+
+        assert handler.previous_locations[0] == (tr.truck_id, "5018 W. Montrose Ave")
+
+    def test_handle_delivery_action_departed_updates_previous_time_with_departure_time(self):
+        tr = truck.Truck(0)
+        tr.departure_time = time(11, 30)
+
+        handler = dh.DeliveryHandler()
+        handler.handle_delivery_action_departed(tr)
+
+        assert handler.previous_times[0] == (tr.truck_id, time(11, 30))
 
     #def test_handle_delivery_action_delivered(self):
 

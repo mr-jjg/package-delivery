@@ -11,6 +11,8 @@ class DeliveryHandler:
         if delivery_list is None:
             delivery_list = []
         self.delivery_list = delivery_list
+        self.previous_locations = []
+        self.previous_times = []
     
     def build_delivery_list(self, fleet):
         available_trucks, waiting_trucks = separate_trucks_by_driver_status(fleet)
@@ -70,8 +72,6 @@ class DeliveryHandler:
     # This delivers the packages, and simulated accelerated real time. Trucks are updated dynamically by storing updated values in the previous_locations and previous_times lists, and recalculating mid-method. Packages with the wrong addresses are handled by dynamically checking for corrected addresses at the end of each while loop.
     def deliver_packages(self, fleet):
         free_driver = None
-        self.previous_locations = []  # List of tuples for updating route_distances per truck: (truck_id, last_address)
-        self.previous_times = []      # List of tuples for tracking last_time per truck: (truck_id, last_time)
 
         # Iterate over a copy of the list so that the state of the delivery_list can be saved (and corrected)
         delivery_queue = self.delivery_list.copy()
