@@ -24,6 +24,73 @@ def make_fleet_four_trucks_even_ids_have_drivers():
 def make_pkg(id_):
     return package.Package(id_, "Address", "City", "ST", 99999, None, 1.0, None, "at_the_hub", None, None, 0, 0)
 
+@pytest.fixture
+def handler_truck_package():
+    handler = dh.DeliveryHandler()
+    handler.previous_locations = []
+    handler.previous_times = []
+    handler.delivery_list = []
+
+    trk = truck.Truck(0)
+    trk.speed_mph = 18
+    trk.route_distance = 0.0
+
+    pkg = make_pkg(0)
+    pkg.address = "1702 S Grand"
+    pkg.city = "Spokane"
+    pkg.state = "WA"
+    pkg.zip_code = 99203
+    pkg.special_note = None
+    pkg.address_history = []
+
+    return handler, trk, pkg
+
+@pytest.fixture
+def fake_time_and_distance(monkeypatch):
+    calls = {}
+
+    def fake_get_previous_location(prev_list, truck_id):
+        calls["get_previous_location"] = (list(prev_list), truck_id)
+        return "1002 W Riverside Ave"
+
+    def fake_get_previous_time(prev_times, truck_id):
+        calls["get_previous_time"] = (list(prev_times), truck_id)
+        return time(8, 0)
+
+    def fake_get_arrival_time(last_time, last_loc, dest_addr, speed_mph):
+        calls["get_arrival_time"] = (last_time, last_loc, dest_addr, speed_mph)
+        return time(8, 5)
+
+    def fake_get_travel_time_in_minutes(start, end):
+        calls["get_travel_time_in_minutes"] = (start, end)
+        return 5
+
+    def fake_get_distance(start, end):
+        calls["get_distance"] = (start, end)
+        return 2.3
+
+    def fake_sleep(_minutes):
+        calls["sleep"] = _minutes
+
+    def fake_update_prev_location(prev_list, truck_id, addr):
+        calls["update_prev_location"] = (list(prev_list), truck_id, addr)
+        prev_list.append((truck_id, addr))
+
+    def fake_update_prev_time(prev_times, truck_id, new_time):
+        calls["update_prev_time"] = (list(prev_times), truck_id, new_time)
+        prev_times.append((truck_id, new_time))
+
+    monkeypatch.setattr(dh, "get_previous_location", fake_get_previous_location)
+    monkeypatch.setattr(dh, "get_previous_time", fake_get_previous_time)
+    monkeypatch.setattr(dh, "get_arrival_time", fake_get_arrival_time)
+    monkeypatch.setattr(dh, "get_travel_time_in_minutes", fake_get_travel_time_in_minutes)
+    monkeypatch.setattr(dh, "get_distance", fake_get_distance)
+    monkeypatch.setattr(dh.simulate_real_time, "sleep", fake_sleep)
+    monkeypatch.setattr(dh, "update_previous_location", fake_update_prev_location)
+    monkeypatch.setattr(dh, "update_previous_time", fake_update_prev_time)
+
+    return calls
+
 class TestBuildDeliveryList:
     def test_calls_separate_trucks_by_driver_status_with_fleet(self, monkeypatch):
         fl, tr1, tr2 = make_fleet_with_two_trucks()
@@ -356,7 +423,38 @@ class TestActionHandlers:
 
         assert handler.previous_times[0] == (tr.truck_id, time(11, 30))
 
-    #def test_handle_delivery_action_delivered(self):
+    def test_handle_delivery_action_delivered_updates_truck_and_package_and_previous_state(self, handler_truck_package, fake_time_and_distance):
+        handler, tr, pkg = handler_truck_package
+        handler.previous_locations = [(tr.truck_id, "507 N Howard St")]
+        handler.previous_times = [(tr.truck_id, time(7, 0))]
+        handler.RATE = 60 # Avoid strange time division
+
+        delivery_time = time(8, 30)
+        handler.handle_delivery_action_delivered(delivery_time, pkg, tr)
+
+        calls = fake_time_and_distance
+
+        assert calls["get_previous_location"][1] == tr.truck_id
+        assert calls["get_previous_time"][1] == tr.truck_id
+
+        last_time, last_loc, dest_addr, speed = calls["get_arrival_time"]
+        assert dest_addr == pkg.address
+        assert speed == tr.speed_mph
+
+        start, end = calls["get_distance"]
+        assert start == "1002 W Riverside Ave"
+        assert end == pkg.address
+
+        assert "sleep" in calls
+        assert calls["sleep"] == 5 / handler.RATE
+
+        assert tr.route_distance == 2.3
+
+        assert handler.previous_locations[-1] == (tr.truck_id, pkg.address)
+        assert handler.previous_times[-1][0] == tr.truck_id
+
+        assert pkg.delivery_status == "delivered"
+        assert pkg.time_of_delivery == delivery_time
 
     #def test_handle_delivery_action_returned():
 
