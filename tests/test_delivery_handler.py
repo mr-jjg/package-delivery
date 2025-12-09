@@ -30,6 +30,7 @@ def handler_truck_package():
     handler.previous_locations = []
     handler.previous_times = []
     handler.delivery_list = []
+    handler.RATE = 60 # Avoid strange time division
 
     trk = truck.Truck(0)
     trk.speed_mph = 18
@@ -427,7 +428,6 @@ class TestActionHandlers:
         handler, tr, pkg = handler_truck_package
         handler.previous_locations = [(tr.truck_id, "507 N Howard St")]
         handler.previous_times = [(tr.truck_id, time(7, 0))]
-        handler.RATE = 60 # Avoid strange time division
 
         delivery_time = time(8, 30)
         handler.handle_delivery_action_delivered(delivery_time, pkg, tr)
@@ -453,6 +453,50 @@ class TestActionHandlers:
         assert handler.previous_locations[-1] == (tr.truck_id, pkg.address)
         assert handler.previous_times[-1][0] == tr.truck_id
 
+        assert pkg.delivery_status == "delivered"
+        assert pkg.time_of_delivery == delivery_time
+
+    def test_handle_delivery_action_delivered_ignores_special_note_until_correction_time(self, handler_truck_package, fake_time_and_distance):
+        handler, tr, pkg = handler_truck_package
+
+        correction_time = time(9, 30)
+        pkg.special_note = ['X', correction_time, "9711 W Charles Rd", "Nine Mile Falls", "_WA_", 99026]
+
+        handler.delivery_list = [(tr, pkg, time(10, 0), "Before address")]
+        original_delivery_list = list(handler.delivery_list)
+
+        delivery_time = time(8, 30)
+        handler.handle_delivery_action_delivered(delivery_time, pkg, tr)
+
+        assert handler.delivery_list == original_delivery_list
+
+        assert pkg.address == "1702 S Grand"
+        assert pkg.city == "Spokane"
+        assert pkg.state == "WA"
+        assert pkg.zip_code == 99203
+        assert pkg.address_history == []
+        assert pkg.delivery_status == "delivered"
+        assert pkg.time_of_delivery == delivery_time
+
+    def test_handle_delivery_action_delivered_updates_special_note_at_correction_time(self, handler_truck_package, fake_time_and_distance):
+        handler, tr, pkg = handler_truck_package
+
+        correction_time = time(8, 0)
+        pkg.special_note = ['X', correction_time, "9711 W Charles Rd", "Nine Mile Falls", "_WA_", 99026]
+
+        handler.delivery_list = [(tr, pkg, time(10, 0), "Before address")]
+
+        delivery_time = time(9, 30)
+        handler.handle_delivery_action_delivered(delivery_time, pkg, tr)
+
+        (tr_entry, pkg_entry, event_time, action) = handler.delivery_list[0]
+
+        assert pkg_entry is pkg  # same object
+        assert pkg_entry.address == "9711 W Charles Rd"
+        assert pkg.city == "Nine Mile Falls"
+        assert pkg.state == "_WA_"
+        assert pkg.zip_code == 99026
+        assert pkg.address_history == [(time(8, 0), "9711 W Charles Rd")]
         assert pkg.delivery_status == "delivered"
         assert pkg.time_of_delivery == delivery_time
 
