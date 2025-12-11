@@ -500,7 +500,15 @@ class TestActionHandlers:
         assert pkg.delivery_status == "delivered"
         assert pkg.time_of_delivery == delivery_time
 
-    #def test_handle_delivery_action_returned():
+    def test_handle_delivery_action_returned(self, handler_truck_package, fake_time_and_distance):
+        handler, tr, _ = handler_truck_package
+        tr.departure_address = "4001 South 700 East"
+        
+        handler.handle_delivery_action_returned(tr)
+        
+        assert tr.route_distance == 2.3
+        assert handler.previous_locations == [(tr.truck_id, tr.departure_address), (tr.truck_id, tr.departure_address)]
+        assert handler.previous_times == [(tr.truck_id, time(8, 5))]
 
 #class TestDeliverPackages:
 
