@@ -595,9 +595,62 @@ class TestDeliverPackages:
         assert handler.previous_locations == []
         assert handler.previous_times == []
 
-#class TestPrintDeliveryList:
+class TestPrintDeliveryList:
+    def test_print_delivery_list_outputs_expected_lines(self, capsys):
+        fl, t1, _ = make_fleet_with_two_trucks()
+        t1.departure_address = "4001 South 700 East"
 
-#class TestPrintPackageStatusesAt:
+        pkg0 = make_pkg(0)
+        pkg0.address = "123 Main St"
+
+        handler = dh.DeliveryHandler()
+        handler.delivery_list = [
+            (t1, None, time(8, 0), dh.DeliveryAction.DEPART),
+            (t1, pkg0, time(8, 30), dh.DeliveryAction.DELIVER),
+        ]
+
+        handler.print_delivery_list()
+
+        captured = capsys.readouterr().out.strip().splitlines()
+
+        assert len(captured) == 2
+
+        assert "Departed" in captured[0]
+        assert "08:00" in captured[0]
+        assert "Truck ID: 1" in captured[0]
+        assert "Package ID: NA" in captured[0]
+        assert "4001 South 700 East" in captured[0]
+
+        assert "Delivered" in captured[1]
+        assert "08:30" in captured[1]
+        assert "Truck ID: 1" in captured[1]
+        assert "Package ID: 0" in captured[1]
+        assert "123 Main St" in captured[1]
+
+class TestPrintPackageStatusesAt:
+    def test_print_package_statuses_at_marks_packages_en_route(self, capsys):
+        fl, t1, _ = make_fleet_with_two_trucks()
+        t1.truck_id = 0
+
+        pkg0 = make_pkg(0)
+        pkg0.address = "123 Main St"
+        pkg0.delivery_deadline = time(10, 30)
+        t1.package_list = [pkg0]
+
+        handler = dh.DeliveryHandler()
+        handler.delivery_list = [
+            (t1, None, time(8, 0), dh.DeliveryAction.DEPART),
+            (t1, pkg0, time(9, 0), dh.DeliveryAction.DELIVER),
+        ]
+
+        handler.print_package_statuses_at(time(8, 30), fl)
+
+        output = capsys.readouterr().out
+
+        assert "Package ID: 0" in output
+        assert "Truck ID: 0" in output
+        assert "Delivery Status: en_route" in output
+        assert "Time of Delivery: NA" in output
 
 class TestHelper:
     def test_separate_trucks_by_driver_status_places_trucks_with_drivers_in_available(self, monkeypatch):
