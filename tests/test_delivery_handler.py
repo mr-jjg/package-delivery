@@ -92,6 +92,25 @@ def fake_time_and_distance(monkeypatch):
 
     return calls
 
+@pytest.fixture
+def fake_delivery_action_handlers(monkeypatch):
+    calls = []
+
+    def fake_departed(self, truck_):
+        calls.append((dh.DeliveryAction.DEPART, truck_))
+
+    def fake_delivered(self, time_, package_, truck_):
+        calls.append((dh.DeliveryAction.DELIVER, time_, package_, truck_))
+
+    def fake_returned(self, truck_):
+        calls.append((dh.DeliveryAction.RETURN, truck_))
+
+    monkeypatch.setattr(dh.DeliveryHandler, "handle_delivery_action_departed", fake_departed)
+    monkeypatch.setattr(dh.DeliveryHandler, "handle_delivery_action_delivered", fake_delivered)
+    monkeypatch.setattr(dh.DeliveryHandler, "handle_delivery_action_returned", fake_returned)
+
+    return calls
+
 class TestBuildDeliveryList:
     def test_calls_separate_trucks_by_driver_status_with_fleet(self, monkeypatch):
         fl, tr1, tr2 = make_fleet_with_two_trucks()
@@ -525,7 +544,56 @@ class TestActionHandlers:
         assert calls["get_travel_time_in_minutes"] == (time(8, 0), time(8, 5))
         assert calls["sleep"] == pytest.approx(5/60)
 
-#class TestDeliverPackages:
+class TestDeliverPackages:
+    def test_deliver_packages_processes_delivery_list_in_order_and_dispatches_handlers(self, fake_delivery_action_handlers):
+        fl, t1, _ = make_fleet_with_two_trucks()
+        pkg0 = make_pkg(0)
+        pkg0.delivery_deadline = time(10, 30)
+
+        handler = dh.DeliveryHandler()
+        handler.delivery_list = [
+            (t1, None, time(8, 0), dh.DeliveryAction.DEPART),
+            (t1, pkg0, time(8, 30), dh.DeliveryAction.DELIVER),
+            (t1, None, time(9, 0), dh.DeliveryAction.RETURN),
+        ]
+
+        handler.deliver_packages(fl)
+
+        assert fake_delivery_action_handlers == [
+            (dh.DeliveryAction.DEPART, t1),
+            (dh.DeliveryAction.DELIVER, time(8, 30), pkg0, t1),
+            (dh.DeliveryAction.RETURN, t1),
+        ]
+
+    def test_deliver_packages_assigns_free_driver_to_unassigned_truck_on_depart(self, fake_delivery_action_handlers):
+        fl, t1, t2 = make_fleet_with_two_trucks()
+        t1.driver = "Bill"
+
+        handler = dh.DeliveryHandler()
+        handler.delivery_list = [
+            (t1, None, time(8, 0), dh.DeliveryAction.DEPART),
+            (t1, None, time(9, 0), dh.DeliveryAction.RETURN),
+            (t2, None, time(10, 0), dh.DeliveryAction.DEPART),
+            (t2, None, time(11, 0), dh.DeliveryAction.RETURN),
+        ]
+
+        handler.deliver_packages(fl)
+
+        assert t1.driver == "Bill"
+        assert t2.driver == "Bill"
+
+    def test_deliver_packages_resets_previous_state_lists_at_end(self, fake_delivery_action_handlers):
+        fl, t1, _ = make_fleet_with_two_trucks()
+
+        handler = dh.DeliveryHandler()
+        handler.previous_locations = [(0, "123 Main St")]
+        handler.previous_times = [(0, time(8, 0))]
+        assert handler.delivery_list == []
+
+        handler.deliver_packages(fl)
+
+        assert handler.previous_locations == []
+        assert handler.previous_times == []
 
 #class TestPrintDeliveryList:
 
