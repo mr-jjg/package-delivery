@@ -10,7 +10,7 @@ class Truck:
                  return_time=None,
                  departure_address='4001 South 700 East',
                  package_list=None, 
-                 route_distance=None,):
+                 route_distance=0.0,):
         if package_list is None:
             package_list = []
         self.truck_id = truck_id
