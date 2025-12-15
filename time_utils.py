@@ -45,11 +45,8 @@ def calculate_travel_time(now_time, travel_time):
     #print(f"arrival_time_minutes: {arrival_minutes}")
     
     # Convert minutes to h:m. Source utilized: https://www.youtube.com/watch?v=ugXLIlM7PW0
-    h_float = arrival_minutes / 60
-    h = int(h_float)
-    
-    m_float = (h_float - h) * 60
-    m = int(m_float)
+    h = arrival_minutes // 60
+    m = arrival_minutes % 60
     
     #print(f"DEBUG: h: {h}, m type {type(m)}")
     #print(f"DEBUG: h: {m}, m type {type(m)}")

@@ -117,7 +117,7 @@ class DeliveryHandler:
 
         print()
         for truck in fleet:
-            print(f"Truck ID: {truck.truck_id + 1}, Final Route Distance: {truck.route_distance}")
+            print(f"Truck ID: {truck.truck_id + 1}, Final Route Distance: {truck.route_distance:.1f}")
         
     def handle_delivery_action_departed(self, truck):
         # Update the deliver_status of each package to 'en_route'
