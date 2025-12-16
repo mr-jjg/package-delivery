@@ -56,8 +56,9 @@ def convert_route_to_package_list(route):
     
     package_list = []
     
-    for tuple in route:
-        package_id = tuple[0]
+    # tup: (package_id, address_index)
+    for tup in route:
+        package_id = tup[0]
         if package_id is not None:
             package = warehouse_hash.search(package_id)
             package_list.append(package)

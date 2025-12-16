@@ -1,5 +1,4 @@
 # tests/test_time_utils.py
-
 from datetime import time
 import package
 import pytest
