@@ -81,7 +81,7 @@ def nearest_neighbor(package_list, start_point='4001 South 700 East'): # Optiona
 
 # A list of tuples to store unvisited vertices: ( package_id, address_index )
 def build_vertices_list(package_list, start_point):
-    vertices_list = [(None, address_to_index(start_point))]
+    vertices_list = []
 
     for package in package_list:
         if package.address != start_point:
