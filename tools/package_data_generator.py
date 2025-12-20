@@ -1,7 +1,6 @@
 import argparse
 import csv
 import random
-from project_data import read_address_data
 
 class PackageDataGenerator:
     def __init__(self, num_pkgs, pct_constraints, pct_deadlines, dl_lower_band=9, dl_upper_band=16):
@@ -27,15 +26,15 @@ class PackageDataGenerator:
     def assign_special_note(self, pkg):
         notes = ["D", "T", "W"]
         if pkg[0] in self.constraints_list:
-            match random.choice(notes):
-                case "D":
-                    pkg[7] = f"D, {self.make_random_time_string(self.dl_lower_band, self.dl_upper_band)}"
-                case "T":
-                    pkg[7] = f"T, {random.randint(1, 3)}"
-                case "W":
-                    k_ = random.randint(1, 2)
-                    chosen_notes = random.sample(self.possible_w_notes, k=k_)
-                    pkg[7] = f"W, {', '.join(str(note) for note in chosen_notes)}"
+            note = random.choice(notes)
+            if note == "D":
+                pkg[7] = f"D, {self.make_random_time_string(self.dl_lower_band, self.dl_upper_band)}"
+            elif note == "T":
+                pkg[7] = f"T, {random.randint(1, 3)}"
+            elif note == "W":
+                k_ = random.randint(1, 2)
+                chosen_notes = random.sample(self.possible_w_notes, k=k_)
+                pkg[7] = f"W, {', '.join(str(note) for note in chosen_notes)}"
                     
     def make_random_time_string(self, lower_band, upper_band):
         rand_hour = random.randint(lower_band, upper_band)
@@ -48,66 +47,84 @@ class PackageDataGenerator:
         with open('packages.csv', 'w', encoding='utf-8', newline='') as f:
             writer = csv.writer(f)
             writer.writerows(write_list)
-            
+
+def read_address_data(input):
+    address_list = []
+
+    with open(input, 'r') as address_file:
+        csv_reader = csv.reader(address_file)
+        for row in csv_reader:
+            #Unpack
+            address_id, city, address = row
+            address_entry = [int(address_id), city, address]
+
+            # Store the address data in a list for later indexing
+            address_list.append(address_entry)
+
+    return address_list
 
 # Row: package_id, address, city, state, zip_code, delivery_deadline, weight_kilo, special_note
 
-parser = argparse.ArgumentParser(description="PackageDataGenerator")
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="PackageDataGenerator")
 
-parser.add_argument(
-    "-n", "--num_pkgs",
-    type=int,
-    choices=[n for n in range(20, 41)],
-    default = 20,
-    help="Set number of packages in PackageData"
-)
-parser.add_argument(
-    "-c", "--constraints",
-    type=int,
-    choices=[n for n in range(0, 101)],
-    default = 20,
-    help="Set percentage of packages with constraints"
-)
-parser.add_argument(
-    "-d", "--deadlines",
-    type=int,
-    choices=[n for n in range(0, 101)],
-    default = 20,
-    help="Set percentage of packages with deadlines"
-)
-parser.add_argument(
-    "-l", "--lower_bound",
-    type=int,
-    choices=[n for n in range(9, 17)],
-    default = 9,
-    help="Set lower hour bound"
-)
-parser.add_argument(
-    "-u", "--upper_bound",
-    type=int,
-    choices=[n for n in range(10, 18)],
-    default = 18,
-    help="Set upper hour bound"
-)
+    parser.add_argument(
+        "-n", "--num_pkgs",
+        type=int,
+        choices=[n for n in range(20, 41)],
+        default = 20,
+        help="Set number of packages in PackageData"
+    )
+    parser.add_argument(
+        "-c", "--constraints",
+        type=int,
+        choices=[n for n in range(0, 101)],
+        default = 20,
+        help="Set percentage of packages with constraints"
+    )
+    parser.add_argument(
+        "-d", "--deadlines",
+        type=int,
+        choices=[n for n in range(0, 101)],
+        default = 20,
+        help="Set percentage of packages with deadlines"
+    )
+    parser.add_argument(
+        "-l", "--lower_bound",
+        type=int,
+        choices=[n for n in range(9, 17)],
+        default = 9,
+        help="Set lower hour bound"
+    )
+    parser.add_argument(
+        "-u", "--upper_bound",
+        type=int,
+        choices=[n for n in range(10, 18)],
+        default = 18,
+        help="Set upper hour bound"
+    )
 
-args = parser.parse_args()
-NUM_PKGS = args.num_pkgs
-PCT_CONSTRAINTS = args.constraints
-PCT_DEADLINES = args.deadlines
-DL_LOWER_BOUND = args.lower_bound
-DL_UPPER_BOUND = args.upper_bound
+    args = parser.parse_args(argv)
+    return args.num_pkgs, args.constraints, args.deadlines, args.lower_bound, args.upper_bound
 
-if DL_LOWER_BOUND > DL_UPPER_BOUND:
-    DL_UPPER_BOUND, DL_LOWER_BOUND = DL_LOWER_BOUND, DL_UPPER_BOUND
+def main():
+    args = parse_args()
+    NUM_PKGS, PCT_CONSTRAINTS, PCT_DEADLINES, DL_LOWER_BOUND, DL_UPPER_BOUND = args
 
-gen = PackageDataGenerator(NUM_PKGS, PCT_CONSTRAINTS, PCT_DEADLINES, DL_LOWER_BOUND, DL_UPPER_BOUND)
+    if DL_LOWER_BOUND > DL_UPPER_BOUND:
+        DL_UPPER_BOUND, DL_LOWER_BOUND = DL_LOWER_BOUND, DL_UPPER_BOUND
 
-write_list = []
-for pkg in gen.packages:
-    gen.assign_random_address(pkg)
-    gen.assign_deadline(pkg)
-    gen.assign_special_note(pkg)
-    print(pkg)
-    write_list.append(pkg)
-    
-gen.generate_csv_from_list(write_list)
+    gen = PackageDataGenerator(NUM_PKGS, PCT_CONSTRAINTS, PCT_DEADLINES, DL_LOWER_BOUND, DL_UPPER_BOUND)
+
+    write_list = []
+    for pkg in gen.packages:
+        gen.assign_random_address(pkg)
+        gen.assign_deadline(pkg)
+        gen.assign_special_note(pkg)
+        print(pkg)
+        write_list.append(pkg)
+
+    gen.generate_csv_from_list(write_list)
+
+if __name__ == "__main__":
+    main()
