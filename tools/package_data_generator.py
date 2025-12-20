@@ -68,43 +68,20 @@ def read_address_data(input):
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="PackageDataGenerator")
 
-    parser.add_argument(
-        "-n", "--num_pkgs",
-        type=int,
-        choices=[n for n in range(20, 41)],
-        default = 20,
-        help="Set number of packages in PackageData"
-    )
-    parser.add_argument(
-        "-c", "--constraints",
-        type=int,
-        choices=[n for n in range(0, 101)],
-        default = 20,
-        help="Set percentage of packages with constraints"
-    )
-    parser.add_argument(
-        "-d", "--deadlines",
-        type=int,
-        choices=[n for n in range(0, 101)],
-        default = 20,
-        help="Set percentage of packages with deadlines"
-    )
-    parser.add_argument(
-        "-l", "--lower_bound",
-        type=int,
-        choices=[n for n in range(9, 17)],
-        default = 9,
-        help="Set lower hour bound"
-    )
-    parser.add_argument(
-        "-u", "--upper_bound",
-        type=int,
-        choices=[n for n in range(10, 18)],
-        default = 18,
-        help="Set upper hour bound"
-    )
+    parser.add_argument("-n", "--num_pkgs", type=int, default = 20, help="Set number of packages in PackageData")
+    parser.add_argument("-c", "--constraints", type=int, default = 20, help="Set percentage of packages with constraints")
+    parser.add_argument("-d", "--deadlines", type=int, default = 20, help="Set percentage of packages with deadlines")
+    parser.add_argument("-l", "--lower_bound", type=int, default = 9, help="Set lower hour bound")
+    parser.add_argument("-u", "--upper_bound", type=int, default = 18, help="Set upper hour bound")
 
     args = parser.parse_args(argv)
+
+    args.num_pkgs = max(20, min(args.num_pkgs, 40))
+    args.constraints = max(0, min(args.constraints, 100))
+    args.deadlines = max(0, min(args.deadlines, 100))
+    args.lower_bound = max(9, min(args.lower_bound, 16))
+    args.upper_bound = max(10, min(args.upper_bound, 18))
+
     return args.num_pkgs, args.constraints, args.deadlines, args.lower_bound, args.upper_bound
 
 def main():

@@ -135,53 +135,6 @@ def test_read_package_data_survives_whitespace_and_extra_spaces(make_package_csv
                 isinstance(value, (int, str)) or value is None
             ), f"{name} expected type {type(value)} got unstripped {type(value)}"
 
-
-@pytest.fixture
-def make_address_csv(tmp_path):
-    default_rows = default_rows = [
-        ["1", "Disneyland", "Anaheim"],
-        ["2", "The White House", "Washington"],
-        ["3", "The Alamo", "San Antonio"],
-        ["4", "Niagara Falls", "Niagara Falls"],
-        ["5", "Peter Griffin's House", "Quahog"]
-    ]
-    
-    def _make(rows=None, name="addresses.csv"):
-        if rows is None:
-            rows = default_rows
-        path = tmp_path / name
-        with path.open("w", newline="") as f:
-            w = csv.writer(f)
-            w.writerows(rows)
-        return path
-    return _make
-    
-def test_read_address_data_happy_path(make_address_csv):
-    csv_path = make_address_csv()
-    
-    address_list = pd.read_address_data(csv_path)
-    
-    assert len(address_list) == 5
-    for address in address_list:
-        assert len(address) == 3
-        assert isinstance(address[0], int)
-    assert address_list[0][1] == "Disneyland"
-    assert address_list[4][2] == "Quahog"
-
-def test_read_address_data_raises_on_nonint_id(tmp_path):
-    bad_row = [
-        ["X", "Toronto", "Nowhere Street"]
-    ]
-    path = tmp_path / "bad_addresses.csv"
-    with path.open('w', newline='') as f:
-        w = csv.writer(f)
-        w.writerows(bad_row)
-    
-    with pytest.raises(ValueError) as exc_info:
-        bad_list = pd.read_address_data(path)
-    
-    assert "invalid literal" in str(exc_info.value) or "int" in str(exc_info.value)
-
 def test_read_distance_data_upper_triangle_is_mirrored_symmetrically(tmp_path):
     test_distance_data = [[0,'',''],
                           [1,0,''],

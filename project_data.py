@@ -33,23 +33,6 @@ def read_package_data(input):
     return hash_table
     
 
-# Function that returns a list generated from a csv input. Unused, as I decided to use a hash table with the address list.
-def read_address_data(input):
-    address_list = []
-    
-    with open(input, 'r') as address_file:
-        csv_reader = csv.reader(address_file)
-        for row in csv_reader:
-            #Unpack
-            address_id, city, address = row
-            address_entry = [int(address_id), city, address]
-            
-            # Store the address data in a list for later indexing
-            address_list.append(address_entry)
-    
-    return address_list
-    
-
 # Function that returns a 2d square matrix generated from a csv input
 def read_distance_data(input):
     size = csv_line_count(input)
