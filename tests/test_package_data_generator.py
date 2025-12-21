@@ -2,16 +2,79 @@
 import csv
 import package_data_generator as pdg
 import pytest
+import random
 
 class TestPackageDataGenerator:
     def test_init_sets_packages_to_num_pkgs(self):
         gen = pdg.PackageDataGenerator(13, 20, 20)
 
         assert len(gen.packages) == 13
-        
+
+    def test_init_assigns_constraints_and_deadlines_as_floats(self):
+        gen = pdg.PackageDataGenerator(13, 20, 20)
+
+        assert isinstance(gen.pct_constraints, float)
+        assert isinstance(gen.pct_deadlines, float)
+        assert gen.pct_constraints == pytest.approx(0.2)
+        assert gen.pct_deadlines == pytest.approx(0.2)
+
+    @pytest.mark.parametrize(
+        "args, c_len, d_len",
+        [
+            ((20, 10, 20), 2, 4),
+            ((20, 30, 40), 6, 8),
+            ((20, 50, 60), 10, 12),
+        ]
+    )
+    def test_init_constraints_and_deadlines_lists_have_expected_sizes_and_valid_ids(self, args, c_len, d_len):
+        gen = pdg.PackageDataGenerator(*args)
+        num_pkgs = args[0]
+
+        assert len(gen.constraints_list) == c_len
+        assert len(gen.deadlines_list) == d_len
+        assert len(set(gen.constraints_list)) == c_len
+        assert len(set(gen.deadlines_list)) == d_len
+        assert all(0 <= i < num_pkgs for i in gen.constraints_list)
+        assert all(0 <= i < num_pkgs for i in gen.deadlines_list)
+
+    @pytest.mark.parametrize(
+        "args",
+        [
+            ((20, 10, 20)),
+            ((20, 30, 40)),
+            ((20, 50, 60)),
+        ]
+    )
+    def test_init_builds_possible_w_notes_with_constraints_list(self, args):
+        gen = pdg.PackageDataGenerator(*args)
+        constraints_set = set(gen.constraints_list)
+        possible_w_notes_set = set(gen.possible_w_notes)
+
+        assert possible_w_notes_set.issubset(constraints_set)
+
+    @pytest.mark.parametrize(
+        "address_row, expected_address",
+        [
+            ([1, "Salt Lake City", "3365 S 900 W"], "3365 S 900 W"),
+            ([2, "Salt Lake City", "3060 Lester St"], "3060 Lester St"),
+            ([3, "Salt Lake City", "2530 S 500 E"], "2530 S 500 E"),
+        ]
+    )
+    def test_assign_random_address_writes_selected_address(self, address_row, expected_address, monkeypatch):
+        monkeypatch.setattr(pdg, "read_address_data", lambda _: [address_row])
+
+        gen = pdg.PackageDataGenerator(20, 0, 0)
+
+        monkeypatch.setattr(pdg.random, "choice", lambda seq: address_row)
+
+        pkg = [0, "Address", "", "", "", "", "", ""]
+        gen.assign_random_address(pkg)
+
+        assert pkg[1] == expected_address
+
 @pytest.fixture
 def make_address_csv(tmp_path):
-    default_rows = default_rows = [
+    default_rows = [
         ["1", "Disneyland", "Anaheim"],
         ["2", "The White House", "Washington"],
         ["3", "The Alamo", "San Antonio"],

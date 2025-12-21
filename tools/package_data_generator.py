@@ -6,13 +6,13 @@ class PackageDataGenerator:
     def __init__(self, num_pkgs, pct_constraints, pct_deadlines, dl_lower_band=9, dl_upper_band=16):
         self.packages = [[i, "Address", "", "", "", "EOD", "", "None"] for i in range(num_pkgs)]
         self.address_list = read_address_data('addressCSV.csv')
-        self.pct_constraints = pct_constraints
-        self.pct_deadlines = pct_deadlines
+        self.pct_constraints = pct_constraints / 100.0
+        self.pct_deadlines = pct_deadlines / 100.0
         self.dl_lower_band = dl_lower_band
         self.dl_upper_band = dl_upper_band - 1
         
-        self.constraints_list = random.sample([pkg[0] for pkg in self.packages], k=int((num_pkgs * pct_constraints / 100)))
-        self.deadlines_list = random.sample([pkg[0] for pkg in self.packages], k=int((num_pkgs * pct_deadlines / 100)))
+        self.constraints_list = random.sample([pkg[0] for pkg in self.packages], k=int((num_pkgs * self.pct_constraints)))
+        self.deadlines_list = random.sample([pkg[0] for pkg in self.packages], k=int((num_pkgs * self.pct_deadlines)))
         self.possible_w_notes = [pkg_id for pkg_id in self.constraints_list if self.packages[pkg_id][7] == "None"]
         
     def assign_random_address(self, pkg):
@@ -62,8 +62,6 @@ def read_address_data(input):
             address_list.append(address_entry)
 
     return address_list
-
-# Row: package_id, address, city, state, zip_code, delivery_deadline, weight_kilo, special_note
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="PackageDataGenerator")
