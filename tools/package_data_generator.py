@@ -1,5 +1,6 @@
 import argparse
 import csv
+from pathlib import Path
 import random
 
 class PackageDataGenerator:
@@ -44,7 +45,10 @@ class PackageDataGenerator:
         return f"{hour}:{minute:02} {time_designation}"
         
     def generate_csv_from_list(self, write_list):
-        with open('packages.csv', 'w', encoding='utf-8', newline='') as f:
+        base_dir = Path(__file__).resolve().parents[1]
+        file_path = base_dir / "packages.csv"
+
+        with open(file_path, 'w', encoding='utf-8', newline='') as f:
             writer = csv.writer(f)
             writer.writerows(write_list)
 
