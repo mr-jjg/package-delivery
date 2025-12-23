@@ -5,6 +5,10 @@ import pytest
 import random
 
 class TestPackageDataGenerator:
+    def test_init_raises_when_lower_band_exceeds_upper_band(self):
+        with pytest.raises(ValueError, match="dl_lower_band must be <= dl_upper_band"):
+            pdg.PackageDataGenerator(10, 20, 30, dl_lower_band=16, dl_upper_band=9)
+
     def test_init_sets_packages_to_num_pkgs(self):
         gen = pdg.PackageDataGenerator(13, 20, 20)
 
@@ -71,6 +75,22 @@ class TestPackageDataGenerator:
         gen.assign_random_address(pkg)
 
         assert pkg[1] == expected_address
+
+    def test_assign_random_address_never_uses_warehouse(self, monkeypatch):
+        gen = pdg.PackageDataGenerator(1, 0, 0)
+        gen.address_list= [
+            ("WH", "Warehouse", "Warehouse Address"),
+            ("A1", "Address1", "123 Main St"),
+            ("A2", "Address2", "456 Oak St"),
+        ]
+
+        monkeypatch.setattr("random.choice", lambda element: element[0])
+
+        pkg = [0, None, None, None, None, None, None, None]
+        gen.assign_random_address(pkg)
+
+        assert pkg[1] != "Warehouse Address"
+        assert pkg[1] in {"123 Main St", "456 Oak St"}
 
 @pytest.fixture
 def make_address_csv(tmp_path):
@@ -161,3 +181,41 @@ def test_parse_args_adjusts_to_ceiling_for_all_high_values():
     assert PCT_DEADLINES == 100
     assert DL_LOWER_BOUND == 16
     assert DL_UPPER_BOUND == 18
+
+@pytest.mark.parametrize(
+    "hour, minute, expected_time_string",
+    [
+        (11, 1, "11:01 AM"),
+        (12, 12, "12:12 PM"),
+        (13, 59, "1:59 PM"),
+        (23, 0, "11:00 PM"),
+    ]
+)
+def test_make_random_time_string_formatting_correct(hour, minute, expected_time_string, monkeypatch):
+    count = 0
+    def fake_randint(low, high):
+        nonlocal count
+        if count == 1: return minute
+        count += 1
+        return hour
+
+    monkeypatch.setattr(pdg.random, "randint", fake_randint)
+
+    time_string = pdg.make_random_time_string(0, 0)
+
+    assert time_string == expected_time_string
+
+def test_make_random_time_string_minute_range_is_always_valid():
+    for i in range(1000):
+        time_string = pdg.make_random_time_string(0, 0)
+        time_part = time_string.split()[0]
+        minute = time_part.split(":")[1]
+        assert 0 <= int(minute) <= 59
+
+def test_make_random_time_string_hour_is_never_0():
+    lower = random.randint(9, 16)
+    upper = random.randint(10, 18)
+    for i in range(1000):
+        time_string = pdg.make_random_time_string(lower, upper)
+        hour = time_string.split(":")[0]
+        assert hour != 0
