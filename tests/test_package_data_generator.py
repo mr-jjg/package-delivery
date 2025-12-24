@@ -99,10 +99,10 @@ class TestPackageDataGenerator:
         before = pkg.copy()
         pkg_id = id(pkg)
 
-        def fake_make_randome_time_string(lower, upper):
+        def fake_make_random_time_string(lower, upper):
             return not_so_random_time_string
 
-        monkeypatch.setattr(pdg, "make_random_time_string", fake_make_randome_time_string)
+        monkeypatch.setattr(pdg, "make_random_time_string", fake_make_random_time_string)
 
         gen = pdg.PackageDataGenerator(1, 0, 0)
         gen.deadlines_list = [pkg[0]]
@@ -128,6 +128,85 @@ class TestPackageDataGenerator:
         gen = pdg.PackageDataGenerator(1, 0, 0)
         gen.deadlines_list = []
         gen.assign_deadline(pkg)
+
+        assert calls == 0
+        assert pkg == before
+        assert id(pkg) == pkg_id
+
+    def test_assign_special_note_D_path_when_pkg_in_constraints_list(self, monkeypatch):
+        pkg = [0, None, None, None, None, None, None, "None"]
+
+        not_so_random_time_string = "10:30 AM"
+        before = pkg.copy()
+        pkg_id = id(pkg)
+
+        monkeypatch.setattr(pdg.random, "choice", lambda notes: "D")
+        monkeypatch.setattr(pdg, "make_random_time_string", lambda lower, upper: not_so_random_time_string)
+
+        gen = pdg.PackageDataGenerator(1, 0, 0)
+        gen.constraints_list = [pkg[0]]
+        gen.assign_special_note(pkg)
+
+        assert pkg[7] == f"D, {not_so_random_time_string}"
+        assert before[:7] == pkg[:7]
+        assert id(pkg) == pkg_id
+
+    def test_assign_special_note_T_path_when_pkg_in_constraints_list(self, monkeypatch):
+        pkg = [0, None, None, None, None, None, None, "None"]
+
+        not_so_random_int = 2
+        before = pkg.copy()
+        pkg_id = id(pkg)
+
+        monkeypatch.setattr(pdg.random, "choice", lambda notes: "T")
+        monkeypatch.setattr(pdg.random, "randint", lambda low, high: not_so_random_int)
+
+        gen = pdg.PackageDataGenerator(1, 0, 0)
+        gen.constraints_list = [pkg[0]]
+        gen.assign_special_note(pkg)
+
+        assert pkg[7] == f"T, {not_so_random_int}"
+        assert before[:7] == pkg[:7]
+        assert id(pkg) == pkg_id
+
+    def test_assign_special_note_W_path_when_pkg_in_constraints_list(self, monkeypatch):
+        pkg = [0, None, None, None, None, None, None, "None"]
+
+        not_so_random_int = 3
+        not_so_random_notes = [7, 8, 9]
+        formatted_sample = ', '.join(str(note) for note in not_so_random_notes)
+        before = pkg.copy()
+        pkg_id = id(pkg)
+
+        monkeypatch.setattr(pdg.random, "choice", lambda notes: "W")
+        monkeypatch.setattr(pdg.random, "randint", lambda low, high: not_so_random_int)
+
+        gen = pdg.PackageDataGenerator(1, 0, 0)
+        gen.constraints_list = [pkg[0]]
+
+        monkeypatch.setattr(pdg.random, "sample", lambda population, k: not_so_random_notes)
+        gen.assign_special_note(pkg)
+
+        assert pkg[7] == f"W, {formatted_sample}"
+        assert before[:7] == pkg[:7]
+        assert id(pkg) == pkg_id
+
+    def test_assign_special_note_noop_when_pkg_not_in_constraints_list(self, monkeypatch):
+        pkg = [999, None, None, None, None, None, None, "None"]
+        before = pkg.copy()
+        pkg_id = id(pkg)
+
+        calls = 0
+        def count_random_choice_calls(choices):
+            nonlocal calls
+            calls += 1
+            return "Failed Test"
+
+        monkeypatch.setattr(pdg.random, "choice", count_random_choice_calls)
+
+        gen = pdg.PackageDataGenerator(1, 0, 0)
+        gen.constraints_list = []
+        gen.assign_special_note(pkg)
 
         assert calls == 0
         assert pkg == before
