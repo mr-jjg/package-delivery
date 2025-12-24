@@ -92,6 +92,47 @@ class TestPackageDataGenerator:
         assert pkg[1] != "Warehouse Address"
         assert pkg[1] in {"123 Main St", "456 Oak St"}
 
+    def test_assign_deadline_sets_time_when_pkg_in_deadlines_list(self, monkeypatch):
+        pkg = [0, None, None, None, None, "EOD", None, None]
+
+        not_so_random_time_string = "10:30 AM"
+        before = pkg.copy()
+        pkg_id = id(pkg)
+
+        def fake_make_randome_time_string(lower, upper):
+            return not_so_random_time_string
+
+        monkeypatch.setattr(pdg, "make_random_time_string", fake_make_randome_time_string)
+
+        gen = pdg.PackageDataGenerator(1, 0, 0)
+        gen.deadlines_list = [pkg[0]]
+        gen.assign_deadline(pkg)
+
+        assert pkg[5] == not_so_random_time_string
+        assert before[:5] + before[6:] == pkg[:5] + pkg[6:]
+        assert id(pkg) == pkg_id
+
+    def test_assign_deadline_noop_when_pkg_not_in_deadlines_list(self, monkeypatch):
+        pkg = [999, None, None, None, None, "EOD", None, None]
+        before = pkg.copy()
+        pkg_id = id(pkg)
+
+        calls = 0
+        def count_make_random_time_string_calls(lower, upper):
+            nonlocal calls
+            calls += 1
+            return "Failed Test"
+
+        monkeypatch.setattr(pdg, "make_random_time_string", count_make_random_time_string_calls)
+
+        gen = pdg.PackageDataGenerator(1, 0, 0)
+        gen.deadlines_list = []
+        gen.assign_deadline(pkg)
+
+        assert calls == 0
+        assert pkg == before
+        assert id(pkg) == pkg_id
+
 @pytest.fixture
 def make_address_csv(tmp_path):
     default_rows = [
@@ -213,9 +254,9 @@ def test_make_random_time_string_minute_range_is_always_valid():
         assert 0 <= int(minute) <= 59
 
 def test_make_random_time_string_hour_is_never_0():
-    lower = random.randint(9, 16)
-    upper = random.randint(10, 18)
+    lower = random.randint(9, 13)
+    upper = random.randint(14, 18)
     for i in range(1000):
         time_string = pdg.make_random_time_string(lower, upper)
         hour = time_string.split(":")[0]
-        assert hour != 0
+        assert hour != "0"
