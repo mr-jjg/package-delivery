@@ -172,8 +172,8 @@ class TestPackageDataGenerator:
     def test_assign_special_note_W_path_when_pkg_in_constraints_list(self, monkeypatch):
         pkg = [0, None, None, None, None, None, None, "None"]
 
-        not_so_random_int = 3
-        not_so_random_notes = [7, 8, 9]
+        not_so_random_int = 2
+        not_so_random_notes = [7, 8]
         formatted_sample = ', '.join(str(note) for note in not_so_random_notes)
         before = pkg.copy()
         pkg_id = id(pkg)
@@ -211,6 +211,24 @@ class TestPackageDataGenerator:
         assert calls == 0
         assert pkg == before
         assert id(pkg) == pkg_id
+
+    def test_generate_csv_from_list_writes_rows_to_file(self, tmp_path):
+        write_list = []
+        for i in range(5):
+            pkg = [str(i), "Address", "", "", "", "", "", ""]
+            write_list.append(pkg)
+
+        gen = pdg.PackageDataGenerator(1, 0, 0)
+
+        output_file = tmp_path / "packages.csv"
+        gen.generate_csv_from_list(write_list, output_file)
+
+        assert output_file.exists()
+
+        with output_file.open() as f:
+            rows = list(csv.reader(f))
+
+        assert rows == write_list
 
 @pytest.fixture
 def make_address_csv(tmp_path):

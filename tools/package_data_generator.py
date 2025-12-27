@@ -41,11 +41,11 @@ class PackageDataGenerator:
                 chosen_notes = random.sample(self.possible_w_notes, k=k_)
                 pkg[7] = f"W, {', '.join(str(note) for note in chosen_notes)}"
 
-    def generate_csv_from_list(self, write_list):
-        base_dir = Path(__file__).resolve().parents[1]
-        file_path = base_dir / "packages.csv"
+    def generate_csv_from_list(self, write_list, output_file):
+        if output_file is None:
+            output_file = Path(__file__).resolve().parents[1] / "packages.csv"
 
-        with open(file_path, 'w', encoding='utf-8', newline='') as f:
+        with output_file.open('w', encoding='utf-8', newline='') as f:
             writer = csv.writer(f)
             writer.writerows(write_list)
 
