@@ -33,15 +33,34 @@ class PackageDataGenerator:
         if pkg[0] in self.constraints_list:
             note = random.choice(notes)
             if note == "D":
-                pkg[7] = f"D, {make_random_time_string(self.dl_lower_band, self.dl_upper_band)}"
-            elif note == "T":
+                if pkg[5] != "EOD" and pkg[5] != "":
+                    deadline_hour = parse_hour_24(pkg[5])
+
+                    delay_lower = self.dl_lower_band
+                    delay_upper = min(self.dl_upper_band, deadline_hour - 1)
+
+                    if delay_lower > delay_upper:
+                        note = random.choice(["T", "W"])
+                    else:
+                        pkg[7] = f"D, {make_random_time_string(delay_lower, delay_upper)}"
+                        return
+                else:
+                    pkg[7] = f"D, {make_random_time_string(self.dl_lower_band, self.dl_upper_band)}"
+                    return
+            if note == "T":
                 pkg[7] = f"T, {random.randint(1, 3)}"
             elif note == "W":
                 k_ = random.randint(1, 2)
-                chosen_notes = random.sample(self.possible_w_notes, k=k_)
-                pkg[7] = f"W, {', '.join(str(note) for note in chosen_notes)}"
 
-    def generate_csv_from_list(self, write_list, output_file):
+                if not self.possible_w_notes:
+                    pkg[7] = f"T, {random.randint(1, 3)}"
+                    return
+
+                k_ = min(k_, len(self.possible_w_notes))
+                chosen_notes = random.sample(self.possible_w_notes, k=k_)
+                pkg[7] = f"W, {', '.join(str(n) for n in chosen_notes)}"
+
+    def generate_csv_from_list(self, write_list, output_file=None):
         if output_file is None:
             output_file = Path(__file__).resolve().parents[1] / "packages.csv"
 
@@ -86,11 +105,21 @@ def parse_args(argv=None):
 
 def make_random_time_string(lower_band, upper_band):
     hour = random.randint(lower_band, upper_band)
-    time_designation = "AM" if hour < 12 else "PM"
+    meridiem = "AM" if hour < 12 else "PM"
     if hour > 12:
         hour = hour % 12
     minute = random.randint(0, 59)
-    return f"{hour}:{minute:02} {time_designation}"
+    return f"{hour}:{minute:02} {meridiem}"
+
+def parse_hour_24(time_str):
+    time_part, meridiem = time_str.split()
+    hour_str, _ = time_part.split(":")
+    hour = int(hour_str)
+
+    if meridiem == "AM":
+        return 0 if hour == 12 else hour
+    else:
+        return 12 if hour == 12 else hour + 12
 
 def main():
     args = parse_args()

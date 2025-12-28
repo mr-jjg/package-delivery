@@ -133,8 +133,9 @@ class TestPackageDataGenerator:
         assert pkg == before
         assert id(pkg) == pkg_id
 
-    def test_assign_special_note_D_path_when_pkg_in_constraints_list(self, monkeypatch):
+    def test_assign_special_note_D_path_when_pkg_in_constraints_list_and_no_delivery_deadline(self, monkeypatch):
         pkg = [0, None, None, None, None, None, None, "None"]
+        pkg[5] = "EOD"
 
         not_so_random_time_string = "10:30 AM"
         before = pkg.copy()
@@ -148,6 +149,44 @@ class TestPackageDataGenerator:
         gen.assign_special_note(pkg)
 
         assert pkg[7] == f"D, {not_so_random_time_string}"
+        assert before[:7] == pkg[:7]
+        assert id(pkg) == pkg_id
+
+    def test_assign_special_note_D_path_when_pkg_in_constraints_list_and_delivery_deadline(self, monkeypatch):
+        pkg = [0, None, None, None, None, "12:00 PM", None, "None"]
+        before = pkg.copy()
+        pkg_id = id(pkg)
+
+        gen = pdg.PackageDataGenerator(1, 0, 0, dl_lower_band=9, dl_upper_band=18)
+        gen.constraints_list = [pkg[0]]
+
+        monkeypatch.setattr(pdg.random, "choice", lambda choices: "D")
+        monkeypatch.setattr(pdg, "make_random_time_string", lambda lower, upper: "11:00 AM")
+
+        gen.assign_special_note(pkg)
+
+        assert pkg[7].startswith("D, ")
+        delayed_time = pkg[7].split(", ", 1)[1]
+        assert pdg.parse_hour_24(delayed_time) < pdg.parse_hour_24(pkg[5])
+        assert before[:7] == pkg[:7]
+        assert id(pkg) == pkg_id
+
+    def test_assign_special_note_D_impossible_window_falls_back_to_T(self, monkeypatch):
+        pkg = [0, None, None, None, None, "10:00 AM", None, "None"]
+        before = pkg.copy()
+        pkg_id = id(pkg)
+
+        gen = pdg.PackageDataGenerator(1, 0, 0, dl_lower_band=9, dl_upper_band=18)
+        gen.constraints_list = [pkg[0]]
+        gen.possible_w_notes = [7]
+
+        choices = iter(["D", "T"])
+        monkeypatch.setattr(pdg.random, "choice", lambda _choices: next(choices))
+        monkeypatch.setattr(pdg.random, "randint", lambda low, high: 2)
+
+        gen.assign_special_note(pkg)
+
+        assert not pkg[7].startswith("T, ")
         assert before[:7] == pkg[:7]
         assert id(pkg) == pkg_id
 
@@ -183,6 +222,7 @@ class TestPackageDataGenerator:
 
         gen = pdg.PackageDataGenerator(1, 0, 0)
         gen.constraints_list = [pkg[0]]
+        gen.possible_w_notes = [7]
 
         monkeypatch.setattr(pdg.random, "sample", lambda population, k: not_so_random_notes)
         gen.assign_special_note(pkg)
@@ -357,3 +397,16 @@ def test_make_random_time_string_hour_is_never_0():
         time_string = pdg.make_random_time_string(lower, upper)
         hour = time_string.split(":")[0]
         assert hour != "0"
+
+@pytest.mark.parametrize(
+    "time_str, expected_hour",
+    [
+        ("12:00 AM", 0),
+        ("12:00 PM", 12),
+        ("1:00 AM", 1),
+        ("1:00 PM", 13),
+    ]
+)
+def test_parse_hour_24_formatting_correct(time_str, expected_hour):
+    parsed_hour = pdg.parse_hour_24(time_str)
+    assert parsed_hour == expected_hour
