@@ -8,7 +8,7 @@ class PackageDataGenerator:
         if dl_lower_band > dl_upper_band:
             raise ValueError("dl_lower_band must be <= dl_upper_band")
 
-        self.packages = [[i, "Address", "", "", "", "EOD", "", "None"] for i in range(num_pkgs)]
+        self.packages = [[i, "Address", "City", "State", "Zip Code", "EOD", "Weight Kilo", "None"] for i in range(num_pkgs)]
         self.address_list = read_address_data('addressCSV.csv')
         self.pct_constraints = pct_constraints / 100.0
         self.pct_deadlines = pct_deadlines / 100.0

@@ -225,7 +225,7 @@ class TestHelpers:
         fake_nearest_neighbor(monkeypatch, distance=10.0, route=["r1", "r2"])
         monkeypatch.setattr(pl, "check_route_feasibility", lambda route, speed, v: True)
 
-        result = pl.build_feasible_routes([t1], working_package_list, verbosity="0")
+        result = pl.build_feasible_routes([t1], working_package_list, verbosity="0", count=1)
 
         assert len(result) == 1
         test_truck, test_route, test_distance = result[0]
@@ -243,7 +243,7 @@ class TestHelpers:
         fake_nearest_neighbor(monkeypatch, distance=10.0, route=["_"])
         monkeypatch.setattr(pl, "check_route_feasibility", lambda route, speed, v: True)
 
-        result = pl.build_feasible_routes([t1, t2], working_package_list, verbosity="0")
+        result = pl.build_feasible_routes([t1, t2], working_package_list, verbosity="0", count=1)
         assert len(result) == 2
         trucks_in_result = {t.truck_id for t, _, _ in result}
         assert trucks_in_result == {0, 1}
@@ -262,7 +262,7 @@ class TestHelpers:
             return calls["count"] == 1
         monkeypatch.setattr(pl, "check_route_feasibility", fake_check_route_feasibility)
 
-        result = pl.build_feasible_routes([t1, t2], working_package_list, verbosity="0")
+        result = pl.build_feasible_routes([t1, t2], working_package_list, verbosity="0", count=1)
 
         assert len(result) == 1
         assert result[0][0] is t1
@@ -275,7 +275,7 @@ class TestHelpers:
         monkeypatch.setattr(pl, "check_route_feasibility", lambda route, speed, v: False)
 
         with pytest.raises(SystemExit):
-            result = pl.build_feasible_routes([t1], working_package_list, verbosity="0")
+            result = pl.build_feasible_routes([t1], working_package_list, verbosity="0", count=1)
 
     def test_choose_best_option_returns_the_only_route_when_exactly_one_feasible_route_exists(self):
         t1, wpl, dist = truck.Truck(0), [make_pkg(1), make_pkg(2)], 10.0
@@ -535,19 +535,17 @@ class TestHelpers:
         assert f"ONTO Truck {tr.truck_id + 1}" in out
 
     def test_vprint_prints_message_when_level_is_string_1(self, capsys):
-        loader = pl.PackageLoader()
         message = "Hello World"
 
-        loader.vprint(message, "1")
+        pl.vprint(message, "1")
         captured = capsys.readouterr()
 
         assert captured.out == "Hello World\n"
 
     def test_vprint_prints_message_when_level_is_not_string_1(self, capsys):
-        loader = pl.PackageLoader()
         levels = [1, "2", "0", "", None]
         for level in levels:
-            loader.vprint("Hello World", level)
+            pl.vprint("Hello World", level)
             captured = capsys.readouterr()
             assert captured.out == ""
 
@@ -815,7 +813,7 @@ def load_packages_world(monkeypatch):
     monkeypatch.setattr(pl, "build_working_package_list", fake_build_working_package_list,)
     monkeypatch.setattr(pl, "nearest_neighbor", lambda pkg_list: (0.0, pkg_list),)
 
-    def fake_build_feasible_routes(available_trucks, working_package_list, verbosity):
+    def fake_build_feasible_routes(available_trucks, working_package_list, verbosity, count):
         t = available_trucks[0]
         return [(t, working_package_list, 10.0)]
 

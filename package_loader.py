@@ -9,10 +9,6 @@ from route_optimizer import check_route_feasibility
 
 class PackageLoader:
     pass
-    
-    def vprint(self, msg, level):
-        if level == "1":
-            print(msg)
 
     def load_assigned_trucks(self, fleet, package_groups, verbosity):
         warehouse_hash = get_warehouse_hash()
@@ -26,7 +22,7 @@ class PackageLoader:
                 ):
                     truck = fleet.truck_list[truck_to_load]
                     if truck.current_capacity > 0:
-                        self.vprint(f"  -LOADING Package {pkg.package_id} ONTO Truck {truck.truck_id + 1}", verbosity)
+                        vprint(f"  -LOADING Package {pkg.package_id} ONTO Truck {truck.truck_id + 1}", verbosity)
                         truck.package_list.append(pkg)
                         truck.current_capacity -= 1
                         package_groups[i].remove(pkg)
@@ -56,7 +52,7 @@ class PackageLoader:
             # If the working_package_list does not have any 'W' notes, then we can check to see if the capacity is sufficient to load the entire list.
             if len(working_package_list) > empty_truck.maximum_capacity:
                 if w_note:
-                    self.vprint(
+                    vprint(
                     f"Working package list with 'W' note cannot fit on truck {empty_truck.truck_id + 1}.",
                     verbosity,
                     )
@@ -92,7 +88,7 @@ class PackageLoader:
         # Load the packages
         while package_groups and truck_list:
             count += 1
-            self.vprint(f"\nIteration: {count} -----------------------------------------------------------------------------------------------", verbosity)
+            vprint(f"\nIteration: {count} -----------------------------------------------------------------------------------------------", verbosity)
             
             # From the package_groups, build a working_package_list based upon the package at the top of the priority list, aka the 'zero_package'.
             working_package_list = build_working_package_list(package_groups) # This method pops from package_groups
@@ -101,7 +97,7 @@ class PackageLoader:
             print(f"\n'working_package_list' at the beginning of an iteration\n")
             print_package_list(working_package_list)
             '''
-            self.vprint(f"\ncurrent_capacity of each truck:", verbosity)
+            vprint(f"\ncurrent_capacity of each truck:", verbosity)
             if verbosity == "1":
                 for truck in truck_list:
                     print(f"  {truck.truck_id }: {truck.current_capacity}")
@@ -114,7 +110,7 @@ class PackageLoader:
             # Testing the routes with each truck with available capacity. We want to find the best outcome for adding the working package list to one of the trucks.
             
             # Step 1: First build a list of feasible routes
-            feasible_routes_list = build_feasible_routes(available_trucks, working_package_list, verbosity)
+            feasible_routes_list = build_feasible_routes(available_trucks, working_package_list, verbosity, count)
                 
             # Step 2: Determine which feasible route minimizes the total distance when replacing a truck's current route.
             best_option = choose_best_option(feasible_routes_list)
@@ -122,7 +118,7 @@ class PackageLoader:
             # Step 3: Load the optimal truck by fixing the package_list, current_capacity, and route_distance attributes
             optimal_truck = best_option[0]
             
-            self.vprint(f"\nTruck {optimal_truck.truck_id + 1} produced the optimal feasible route with a minimum distances of {best_option[2]:.1f}", verbosity)
+            vprint(f"\nTruck {optimal_truck.truck_id + 1} produced the optimal feasible route with a minimum distances of {best_option[2]:.1f}", verbosity)
             load_optimal_truck(best_option)
             print_loading_packages(optimal_truck, working_package_list, verbosity)
             # Remove the optimal truck if it is at capacity.
@@ -135,6 +131,10 @@ class PackageLoader:
     
 
 # Helper functions
+
+def vprint(msg, level):
+    if level == "1":
+        print(msg)
 
 def adjust_working_list_for_capacity(truck_list, package_groups, working_package_list, verbosity):
     # First see which trucks can take the *full* list
@@ -210,7 +210,7 @@ def get_trucks_with_available_capacity(truck_list, list_length):
     return trucks_with_available_capacity
     
 
-def build_feasible_routes(available_trucks, working_package_list, verbosity):
+def build_feasible_routes(available_trucks, working_package_list, verbosity, count):
     feasible_routes_list = []
     for truck in available_trucks:
         if verbosity == "1": vprint(f"\nTesting Truck {truck.truck_id + 1} for feasibility", verbosity)
