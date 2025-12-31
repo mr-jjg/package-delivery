@@ -5,7 +5,7 @@ from distance_repository import get_distance
 from package import Package
 
 class DeliveryHandler:
-    RATE = 8 # Set the rate of accelerated real-time
+    RATE = 80 # Set the rate of accelerated real-time
     
     def __init__(self, delivery_list=None):
         if delivery_list is None:
@@ -93,11 +93,13 @@ class DeliveryHandler:
             
             # Delivery of the packages
             elif action == DeliveryAction.DELIVER:
-                self.handle_delivery_action_delivered(time, package, truck)
+                actual_time = self.handle_delivery_action_delivered(time, package, truck)
                 
                 # Prepare strings for output
+                time_str = actual_time.strftime("%H:%M")
                 deadline_str = package.delivery_deadline.strftime("%H:%M") if package.delivery_deadline != package.EOD_TIME else 'EOD'
-                met_deadline_str = f" Met deadline: {time < package.delivery_deadline}" if package.delivery_deadline != package.EOD_TIME else ''
+                met_deadline = (actual_time < package.delivery_deadline) if package.delivery_deadline != package.EOD_TIME else None
+                met_deadline_str = f" Met deadline: {met_deadline}" if met_deadline is not None else ""
                 
                 # Output
                 print(f"{action.value:<9} {time_str} | Package: {package.package_id:<2} | Address: {package.address:<40} | Delivery Deadline: {deadline_str:<7} | {met_deadline_str}")
@@ -179,7 +181,9 @@ class DeliveryHandler:
 
         # Update the package's delivery attributes
         package.delivery_status = 'delivered'
-        package.time_of_delivery = time
+        package.time_of_delivery = new_time
+
+        return new_time
 
     def handle_delivery_action_returned(self, truck):
         last_location = get_previous_location(self.previous_locations, truck.truck_id)

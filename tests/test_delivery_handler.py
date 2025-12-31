@@ -101,6 +101,7 @@ def fake_delivery_action_handlers(monkeypatch):
 
     def fake_delivered(self, time_, package_, truck_):
         calls.append((dh.DeliveryAction.DELIVER, time_, package_, truck_))
+        return time_
 
     def fake_returned(self, truck_):
         calls.append((dh.DeliveryAction.RETURN, truck_))
@@ -448,8 +449,7 @@ class TestActionHandlers:
         handler.previous_locations = [(tr.truck_id, "507 N Howard St")]
         handler.previous_times = [(tr.truck_id, time(7, 0))]
 
-        delivery_time = time(8, 30)
-        handler.handle_delivery_action_delivered(delivery_time, pkg, tr)
+        new_time = handler.handle_delivery_action_delivered(time(8, 30), pkg, tr)
 
         calls = fake_time_and_distance
 
@@ -473,7 +473,7 @@ class TestActionHandlers:
         assert handler.previous_times[-1][0] == tr.truck_id
 
         assert pkg.delivery_status == "delivered"
-        assert pkg.time_of_delivery == delivery_time
+        assert pkg.time_of_delivery == new_time
 
     def test_handle_delivery_action_delivered_ignores_special_note_until_correction_time(self, handler_truck_package, fake_time_and_distance):
         handler, tr, pkg = handler_truck_package
@@ -484,8 +484,7 @@ class TestActionHandlers:
         handler.delivery_list = [(tr, pkg, time(10, 0), "Before address")]
         original_delivery_list = list(handler.delivery_list)
 
-        delivery_time = time(8, 30)
-        handler.handle_delivery_action_delivered(delivery_time, pkg, tr)
+        new_time = handler.handle_delivery_action_delivered(time(8, 30), pkg, tr)
 
         assert handler.delivery_list == original_delivery_list
 
@@ -495,7 +494,7 @@ class TestActionHandlers:
         assert pkg.zip_code == 99203
         assert pkg.address_history == []
         assert pkg.delivery_status == "delivered"
-        assert pkg.time_of_delivery == delivery_time
+        assert pkg.time_of_delivery == new_time
 
     def test_handle_delivery_action_delivered_updates_special_note_at_correction_time(self, handler_truck_package, fake_time_and_distance):
         handler, tr, pkg = handler_truck_package
@@ -505,8 +504,7 @@ class TestActionHandlers:
 
         handler.delivery_list = [(tr, pkg, time(10, 0), "Before address")]
 
-        delivery_time = time(9, 30)
-        handler.handle_delivery_action_delivered(delivery_time, pkg, tr)
+        new_time = handler.handle_delivery_action_delivered(time(9, 30), pkg, tr)
 
         (tr_entry, pkg_entry, event_time, action) = handler.delivery_list[0]
 
@@ -517,7 +515,7 @@ class TestActionHandlers:
         assert pkg.zip_code == 99026
         assert pkg.address_history == [(time(8, 0), "9711 W Charles Rd")]
         assert pkg.delivery_status == "delivered"
-        assert pkg.time_of_delivery == delivery_time
+        assert pkg.time_of_delivery == new_time
 
     def test_handle_delivery_action_returned_updates_truck_distance_and_previous_state(self, handler_truck_package, fake_time_and_distance):
         handler, tr, _ = handler_truck_package
@@ -594,6 +592,85 @@ class TestDeliverPackages:
 
         assert handler.previous_locations == []
         assert handler.previous_times == []
+
+    def test_deliver_packages_prints_actual_time_returned_by_delivered_handler(self, monkeypatch, capsys):
+        fl, t1, _ = make_fleet_with_two_trucks()
+        t1.departure_address = "4001 South 700 East"
+
+        pkg0 = make_pkg(0)
+        pkg0.address = "123 Main St"
+        pkg0.delivery_deadline = time(9, 0)
+
+        handler = dh.DeliveryHandler()
+        handler.delivery_list = [
+            (t1, None, time(8, 0), dh.DeliveryAction.DEPART),
+            (t1, pkg0, time(8, 30), dh.DeliveryAction.DELIVER),  # queued time
+        ]
+
+        def fake_delivered(self, time_, package_, truck_):
+            return time(10, 0)
+
+        monkeypatch.setattr(dh.DeliveryHandler, "handle_delivery_action_delivered", fake_delivered)
+
+        handler.deliver_packages(fl)
+
+        out = capsys.readouterr().out
+
+        assert "Delivered" in out
+        assert "10:00" in out
+        assert "08:30" not in out
+
+    def test_deliver_packages_evaluates_deadline_using_actual_time_not_event_time(self, monkeypatch, capsys):
+        fl, t1, _ = make_fleet_with_two_trucks()
+        t1.departure_address = "4001 South 700 East"
+
+        pkg0 = make_pkg(0)
+        pkg0.address = "123 Main St"
+        pkg0.delivery_deadline = time(9, 0)
+
+        handler = dh.DeliveryHandler()
+        handler.delivery_list = [
+            (t1, None, time(8, 0), dh.DeliveryAction.DEPART),
+            (t1, pkg0, time(8, 30), dh.DeliveryAction.DELIVER),  # queued time would look "on time"
+        ]
+
+        def fake_delivered(self, time_, package_, truck_):
+            return time(10, 0)
+
+        monkeypatch.setattr(dh.DeliveryHandler, "handle_delivery_action_delivered", fake_delivered)
+
+        handler.deliver_packages(fl)
+
+        out = capsys.readouterr().out
+
+        assert "Met deadline: False" in out
+        assert "10:00" in out
+
+    def test_deliver_packages_does_not_print_met_deadline_for_eod_deadline(self, monkeypatch, capsys):
+        fl, t1, _ = make_fleet_with_two_trucks()
+        t1.departure_address = "4001 South 700 East"
+
+        pkg0 = make_pkg(0)
+        pkg0.address = "123 Main St"
+        pkg0.delivery_deadline = pkg0.EOD_TIME  # triggers the EOD branch
+
+        handler = dh.DeliveryHandler()
+        handler.delivery_list = [
+            (t1, None, time(8, 0), dh.DeliveryAction.DEPART),
+            (t1, pkg0, time(8, 30), dh.DeliveryAction.DELIVER),
+        ]
+
+        def fake_delivered(self, time_, package_, truck_):
+            return time(10, 0)
+
+        monkeypatch.setattr(dh.DeliveryHandler, "handle_delivery_action_delivered", fake_delivered)
+
+        handler.deliver_packages(fl)
+
+        out = capsys.readouterr().out
+
+        assert "Delivery Deadline: EOD" in out
+        assert "Met deadline:" not in out
 
 class TestPrintDeliveryList:
     def test_print_delivery_list_outputs_expected_lines(self, capsys):
