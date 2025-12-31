@@ -50,11 +50,18 @@ class TestPackageDataGenerator:
         ]
     )
     def test_init_builds_possible_w_notes_with_constraints_list(self, args):
+        num_pkgs, pct_constraints, pct_deadlines = args
         gen = pdg.PackageDataGenerator(*args)
+
+        all_ids = set(range(num_pkgs))
         constraints_set = set(gen.constraints_list)
         possible_w_notes_set = set(gen.possible_w_notes)
 
-        assert possible_w_notes_set.issubset(constraints_set)
+        assert possible_w_notes_set == (all_ids - constraints_set)
+
+    def test_possible_w_notes_empty_when_constraints_100(self):
+        gen = pdg.PackageDataGenerator(40, 100, 100)
+        assert gen.possible_w_notes == []
 
     @pytest.mark.parametrize(
         "address_row, expected_address",

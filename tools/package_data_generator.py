@@ -9,6 +9,7 @@ class PackageDataGenerator:
             raise ValueError("dl_lower_band must be <= dl_upper_band")
 
         self.packages = [[i, "Address", "City", "State", "Zip Code", "EOD", "Weight Kilo", "None"] for i in range(num_pkgs)]
+        self.pkg_ids = [pkg[0] for pkg in self.packages]
         self.address_list = read_address_data('addressCSV.csv')
         self.pct_constraints = pct_constraints / 100.0
         self.pct_deadlines = pct_deadlines / 100.0
@@ -17,7 +18,7 @@ class PackageDataGenerator:
         
         self.constraints_list = random.sample([pkg[0] for pkg in self.packages], k=int((num_pkgs * self.pct_constraints)))
         self.deadlines_list = random.sample([pkg[0] for pkg in self.packages], k=int((num_pkgs * self.pct_deadlines)))
-        self.possible_w_notes = [pkg_id for pkg_id in self.constraints_list if self.packages[pkg_id][7] == "None"]
+        self.possible_w_notes = [pkg_id for pkg_id in self.pkg_ids if pkg_id not in self.constraints_list]
         
     def assign_random_address(self, pkg):
         self.delivery_addresses = self.address_list[1:]
