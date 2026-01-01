@@ -198,29 +198,140 @@ class TestPackageDataGenerator:
         assert id(pkg) == pkg_id
 
     def test_assign_special_note_T_path_when_pkg_in_constraints_list(self, monkeypatch):
-        pkg = [0, None, None, None, None, None, None, "None"]
-
-        not_so_random_int = 2
+        pkg = [0, None, None, None, None, "EOD", None, "None"]
         before = pkg.copy()
         pkg_id = id(pkg)
 
-        monkeypatch.setattr(pdg.random, "choice", lambda notes: "T")
-        monkeypatch.setattr(pdg.random, "randint", lambda low, high: not_so_random_int)
+        def fake_choice(seq):
+            if seq and isinstance(seq[0], str):
+                return "T"
+            return seq[0]
+
+        monkeypatch.setattr(pdg.random, "choice", fake_choice)
 
         gen = pdg.PackageDataGenerator(1, 0, 0)
         gen.constraints_list = [pkg[0]]
         gen.assign_special_note(pkg)
 
-        assert pkg[7] == f"T, {not_so_random_int}"
+        assert pkg[7] == "T, 1"
+        assert gen.truck_loads[1] == 1
         assert before[:7] == pkg[:7]
         assert id(pkg) == pkg_id
 
+    def test_assign_special_note_T_path_capacity_exhaustion_forces_no_more_T_notes(self, monkeypatch):
+        pkg = [0, None, None, None, None, "EOD", None, "None"]
+        before = pkg.copy()
+        pkg_id = id(pkg)
+
+        gen = pdg.PackageDataGenerator(1, 0, 0)
+        gen.constraints_list = [pkg[0]]
+
+        gen.truck_capacity = 1
+        gen.truck_ids =  [1]
+        gen.truck_loads = {1: 1}
+
+        gen.possible_w_notes = []
+
+        def fake_choice(seq):
+            assert "T" not in seq
+            return "D"
+
+        monkeypatch.setattr(pdg.random, "choice", fake_choice)
+        monkeypatch.setattr(pdg, "make_random_time_string", lambda lower, upper: "10:30 AM")
+
+        gen.assign_special_note(pkg)
+
+        assert pkg[7] == "D, 10:30 AM"
+        assert gen.truck_loads[1] == 1
+        assert before[:7] == pkg[:7]
+        assert id(pkg) == pkg_id
+
+    def test_assign_special_note_W_pool_excludes_constrained_and_self(self, monkeypatch):
+        pkg = [0, None, None, None, None, "EOD", None, "None"]
+        before = pkg.copy()
+        pkg_id = id(pkg)
+
+        gen = pdg.PackageDataGenerator(4, 0, 0)
+        gen.constraints_list = [0, 1]
+        gen.possible_w_notes = [2, 3]
+
+        gen.truck_ids = []
+        gen.truck_loads = {}
+        gen.truck_capacity = 0
+
+        monkeypatch.setattr(pdg.random, "choice", lambda seq: "W")
+        monkeypatch.setattr(pdg.random, "randint", lambda low, high: 2)
+
+        def fake_sample(population, k):
+            assert 0 not in population
+            assert 1 not in population
+            assert set(population) <= {2, 3}
+            return population[:k]
+
+        monkeypatch.setattr(pdg.random, "sample", fake_sample)
+
+        gen.assign_special_note(pkg)
+
+        assert pkg[7].startswith("W, ")
+        w_ids = [int(x.strip()) for x in pkg[7].split(",")[1:]]
+        assert all(wid in (2, 3) for wid in w_ids)
+        assert before[:7] == pkg[:7]
+        assert id(pkg) == pkg_id
+
+    def test_assign_special_note_T_increments_load_and_then_becomes_ineligible_when_full(self, monkeypatch):
+        pkg1 = [0, None, None, None, None, "EOD", None, "None"]
+        pkg2 = [1, None, None, None, None, "EOD", None, "None"]
+
+        before1 = pkg1.copy()
+        before2 = pkg2.copy()
+        pkg1_id = id(pkg1)
+        pkg2_id = id(pkg2)
+
+        gen = pdg.PackageDataGenerator(2, 0, 0)
+        gen.constraints_list = [0, 1]
+
+        gen.truck_capacity = 1
+        gen.truck_ids = [1]
+        gen.truck_loads = {1: 0}
+
+        gen.possible_w_notes = []
+
+        note_choice_calls = {"n": 0}
+
+        def fake_choice(seq):
+            if seq and isinstance(seq[0], int):
+                return seq[0]
+
+            note_choice_calls["n"] += 1
+            if note_choice_calls["n"] == 1:
+                assert "T" in seq
+                return "T"
+            else:
+                assert "T" not in seq
+                return "D"
+
+        monkeypatch.setattr(pdg.random, "choice", fake_choice)
+        monkeypatch.setattr(pdg, "make_random_time_string", lambda lower, upper: "10:30 AM")
+
+        gen.assign_special_note(pkg1)
+        gen.assign_special_note(pkg2)
+
+        assert pkg1[7] == "T, 1"
+        assert gen.truck_loads[1] == 1
+
+        assert pkg2[7] == "D, 10:30 AM"
+        assert gen.truck_loads[1] == 1
+
+        assert before1[:7] == pkg1[:7]
+        assert before2[:7] == pkg2[:7]
+        assert id(pkg1) == pkg1_id
+        assert id(pkg2) == pkg2_id
+
     def test_assign_special_note_W_path_when_pkg_in_constraints_list(self, monkeypatch):
-        pkg = [0, None, None, None, None, None, None, "None"]
+        pkg = [0, None, None, None, None, "EOD", None, "None"]
 
         not_so_random_int = 2
-        not_so_random_notes = [7, 8]
-        formatted_sample = ', '.join(str(note) for note in not_so_random_notes)
+        not_so_random_notes = [7]
         before = pkg.copy()
         pkg_id = id(pkg)
 
@@ -231,10 +342,10 @@ class TestPackageDataGenerator:
         gen.constraints_list = [pkg[0]]
         gen.possible_w_notes = [7]
 
-        monkeypatch.setattr(pdg.random, "sample", lambda population, k: not_so_random_notes)
+        monkeypatch.setattr(pdg.random, "sample", lambda population, k: population[:k])
         gen.assign_special_note(pkg)
 
-        assert pkg[7] == f"W, {formatted_sample}"
+        assert pkg[7] == f"W, 7"
         assert before[:7] == pkg[:7]
         assert id(pkg) == pkg_id
 

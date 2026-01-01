@@ -19,7 +19,11 @@ class PackageDataGenerator:
         self.constraints_list = random.sample([pkg[0] for pkg in self.packages], k=int((num_pkgs * self.pct_constraints)))
         self.deadlines_list = random.sample([pkg[0] for pkg in self.packages], k=int((num_pkgs * self.pct_deadlines)))
         self.possible_w_notes = [pkg_id for pkg_id in self.pkg_ids if pkg_id not in self.constraints_list]
-        
+
+        self.truck_capacity = 16 # TODO: Add CLI arg
+        self.truck_ids = [1, 2, 3] # TODO: Add CLI arg
+        self.truck_loads = {tid: 0 for tid in self.truck_ids}
+
     def assign_random_address(self, pkg):
         self.delivery_addresses = self.address_list[1:]
         address_tup = random.choice(self.delivery_addresses)
@@ -30,36 +34,53 @@ class PackageDataGenerator:
             pkg[5] = make_random_time_string(self.dl_lower_band, self.dl_upper_band)
         
     def assign_special_note(self, pkg):
-        notes = ["D", "T", "W"]
-        if pkg[0] in self.constraints_list:
-            note = random.choice(notes)
-            if note == "D":
-                if pkg[5] != "EOD" and pkg[5] != "":
-                    deadline_hour = parse_hour_24(pkg[5])
+        if pkg[0] not in self.constraints_list:
+            return
 
-                    delay_lower = self.dl_lower_band
-                    delay_upper = min(self.dl_upper_band, deadline_hour - 1)
+        notes = []
 
-                    if delay_lower > delay_upper:
-                        note = random.choice(["T", "W"])
-                    else:
-                        pkg[7] = f"D, {make_random_time_string(delay_lower, delay_upper)}"
-                        return
-                else:
-                    pkg[7] = f"D, {make_random_time_string(self.dl_lower_band, self.dl_upper_band)}"
-                    return
-            if note == "T":
-                pkg[7] = f"T, {random.randint(1, 3)}"
-            elif note == "W":
-                k_ = random.randint(1, 2)
+        eligible_trucks = [tid for tid in self.truck_ids if self.truck_loads[tid] < self.truck_capacity]
+        if eligible_trucks:
+            notes.append("T")
 
-                if not self.possible_w_notes:
-                    pkg[7] = f"T, {random.randint(1, 3)}"
-                    return
+        if self.possible_w_notes:
+            notes.append("W")
 
-                k_ = min(k_, len(self.possible_w_notes))
-                chosen_notes = random.sample(self.possible_w_notes, k=k_)
-                pkg[7] = f"W, {', '.join(str(n) for n in chosen_notes)}"
+        has_deadline = pkg[5] not in ("EOD", "")
+        if has_deadline:
+            deadline_hour = parse_hour_24(pkg[5])
+            delay_lower = self.dl_lower_band
+            delay_upper = min(self.dl_upper_band, deadline_hour - 1)
+            if delay_lower <= delay_upper:
+                notes.append("D")
+        else:
+            notes.append("D")
+
+        if not notes:
+            return
+
+        note = random.choice(notes)
+
+        if note == "T":
+            truck_id = random.choice(eligible_trucks)
+            pkg[7] = f"T, {truck_id}"
+            self.truck_loads[truck_id] += 1
+            return
+
+        if note == "W":
+            pool = [pid for pid in self.possible_w_notes if pid != pkg[0]]
+            k_ = min(random.randint(1, 2), len(pool))
+            chosen_notes = random.sample(pool, k=k_)
+            pkg[7] = f"W, {', '.join(str(n) for n in chosen_notes)}"
+            return
+
+        if has_deadline:
+            deadline_hour = parse_hour_24(pkg[5])
+            delay_lower = self.dl_lower_band
+            delay_upper = min(self.dl_upper_band, deadline_hour - 1)
+            pkg[7] = f"D, {make_random_time_string(delay_lower, delay_upper)}"
+        else:
+            pkg[7] = f"D, {make_random_time_string(self.dl_lower_band, self.dl_upper_band)}"
 
     def generate_csv_from_list(self, write_list, output_file=None):
         if output_file is None:
