@@ -211,7 +211,29 @@ class PackageHandler:
                     raise ValueError(f"Package with id {id} not in warehouse!")
                 group_list.append(pkg)
             result_groups_list.append(group_list)
-        
+
+        for package_group in result_groups_list:
+            truck_set = set()
+            for pkg in package_group:
+                if pkg.truck is not None:
+                    truck_set.add(pkg.truck)
+
+            if len(truck_set) == 0:
+                # No forced truck in this W-group; leave as-is.
+                continue
+            if len(truck_set) == 1:
+                # Exactly one forced truck; propagate to entire group.
+                truck_id = next(iter(truck_set))
+                for pkg in package_group:
+                    pkg.truck = truck_id
+                continue
+
+            # Conflicting truck constraints inside one W component.
+            raise ValueError(
+                f"Impossible W-group: multiple forced trucks {sorted(truck_set)} "
+                f"for package IDs {[p.package_id for p in package_group]}"
+            )
+
         '''# DEBUG ONLY
         print("\nGrouped packages:")
         print_group_list(result_groups_list)

@@ -707,6 +707,50 @@ def test_handle_with_package_note_offsets_groups_when_existing_groups_present(mo
     assert p1.group == 11
     assert p2.group == 11
 
+def test_handle_with_package_note_propagates_truck_across_w_group(sample_w_notes):
+    """
+    If any package in a W-connected component already has pkg.truck set,
+    handle_with_package_note should propagate that truck to all packages
+    in that component.
+    """
+    # In sample_w_notes:
+    # - Package ID 3 (index 2) has note "W, 7"
+    # - Package ID 7 (index 6) has note "W, 3"
+    packages = sample_w_notes
+    packages[2].truck = 1  # forced truck constraint already present on one member
+
+    handler = ph.PackageHandler()
+    handler.handle_with_package_note(packages)
+
+    # Both members of the W-component should now share the forced truck
+    assert packages[2].package_id == 3
+    assert packages[6].package_id == 7
+    assert packages[2].truck == 1
+    assert packages[6].truck == 1
+
+    # Everyone else remains unforced (None) in this fixture scenario
+    for pkg in packages:
+        if pkg.package_id not in {3, 7}:
+            assert pkg.truck is None
+
+
+def test_handle_with_package_note_conflicting_trucks_in_w_group_raises(sample_w_notes):
+    """
+    If a single W-connected component contains >1 distinct forced truck values,
+    the method should raise ValueError (impossible constraint set).
+    """
+    packages = sample_w_notes
+
+    # Create an impossible situation within the same W-component {3,7}
+    packages[2].truck = 0  # pkg id 3
+    packages[6].truck = 1  # pkg id 7
+
+    handler = ph.PackageHandler()
+
+    with pytest.raises(ValueError):
+        handler.handle_with_package_note(packages)
+
+
 def test_add_and_prioritize_remaining_packages_sets_special_note_none_to_4(patch_get_warehouse_hash):
     remaining_packages = []
     handler = ph.PackageHandler()
