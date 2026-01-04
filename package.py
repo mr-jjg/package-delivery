@@ -16,7 +16,8 @@ class Package:
                  time_of_delivery = None,
                  truck=None,
                  group=None,
-                 priority=None):
+                 priority=None,
+                 delay_time=None):
         self.package_id = package_id
         self.address = address
         self.address_history = [(None, address)]
@@ -31,6 +32,7 @@ class Package:
         self.truck = truck
         self.group = group
         self.priority = priority
+        self.delay_time = delay_time
         
     
     def __str__(self):

@@ -53,6 +53,14 @@ def make_pkg(pid=1, deadline=None, note=None):
     p.special_note = note
     return p
 
+def make_delayed_deadline_pkg(pid, deadline, delay, group=None, truck=None):
+    p = make_pkg(pid=pid, deadline=deadline, note=["D", delay])
+    p.priority = 0
+    p.delay_time = None
+    p.group = group
+    p.truck = truck
+    return p
+
 def test_merge_addresses_does_not_change_packages_with_different_addresses(patch_get_warehouse_hash):
     before = snapshot(patch_get_warehouse_hash[:5])
     before.pop(1)
@@ -336,6 +344,128 @@ def test_handle_with_truck_incorrect_input_is_not_set(t_note, expected):
     assert pkg.truck is None
     assert pkg.special_note == t_note
 
+def test_handle_delayed_with_deadline_note_empty_fleet_raises():
+    fl = fleet.Fleet(0)
+    handler = ph.PackageHandler()
+    pkg = make_delayed_deadline_pkg(
+        pid=1,
+        deadline=datetime.time(10, 30),
+        delay=datetime.time(9, 0)
+    )
+    with pytest.raises(ValueError):
+        handler.handle_delayed_with_deadline_note([pkg], fl)
+
+
+def test_handle_delayed_with_deadline_note_no_candidates_noop():
+    fl = fleet.Fleet(1)
+    handler = ph.PackageHandler()
+
+    # Not priority 0, so should be ignored
+    pkg = make_pkg(pid=1, deadline=datetime.time(10, 30), note=["D", datetime.time(9, 0)])
+    pkg.priority = 1
+    pkg.group = 99
+    pkg.truck = None
+    pkg.delay_time = None
+
+    handler.handle_delayed_with_deadline_note([pkg], fl)
+
+    assert pkg.group == 99
+    assert pkg.truck is None
+    assert pkg.delay_time is None
+
+
+def test_handle_delayed_with_deadline_note_delay_after_deadline_raises():
+    fl = fleet.Fleet(1)
+    handler = ph.PackageHandler()
+
+    pkg = make_delayed_deadline_pkg(
+        pid=1,
+        deadline=datetime.time(10, 0),
+        delay=datetime.time(10, 1)  # arrives after deadline
+    )
+
+    with pytest.raises(ValueError):
+        handler.handle_delayed_with_deadline_note([pkg], fl)
+
+
+def test_handle_delayed_with_deadline_note_assigns_groups_after_existing_groups():
+    fl = fleet.Fleet(1)
+    handler = ph.PackageHandler()
+
+    # Existing groups already present in the list, so new ones should start after max(existing)
+    existing_a = make_pkg(pid=90, deadline=package.Package.EOD_TIME, note=None)
+    existing_a.group = 5
+    existing_a.priority = 2
+
+    existing_b = make_pkg(pid=91, deadline=package.Package.EOD_TIME, note=None)
+    existing_b.group = 12
+    existing_b.priority = 2
+
+    p1 = make_delayed_deadline_pkg(pid=1, deadline=datetime.time(10, 30), delay=datetime.time(9, 0))
+    p2 = make_delayed_deadline_pkg(pid=2, deadline=datetime.time(10, 15), delay=datetime.time(9, 0))
+
+    handler.handle_delayed_with_deadline_note([existing_a, existing_b, p1, p2], fl)
+
+    assert p1.group == 13
+    assert p2.group == 13
+
+
+def test_handle_delayed_with_deadline_note_splits_clusters_when_infeasible():
+    fl = fleet.Fleet(1)
+    handler = ph.PackageHandler()
+
+    # These two cannot share a cluster:
+    early_deadline = make_delayed_deadline_pkg(
+        pid=1,
+        deadline=datetime.time(9, 30),
+        delay=datetime.time(9, 0)
+    )
+    late_arrival = make_delayed_deadline_pkg(
+        pid=2,
+        deadline=datetime.time(10, 0),
+        delay=datetime.time(9, 50)
+    )
+
+    handler.handle_delayed_with_deadline_note([early_deadline, late_arrival], fl)
+
+    assert early_deadline.group != late_arrival.group
+    assert early_deadline.group == 0
+    assert late_arrival.group == 1
+
+
+def test_handle_delayed_with_deadline_note_skips_truck_assigned_packages():
+    fl = fleet.Fleet(1)
+    handler = ph.PackageHandler()
+
+    # Truck already set, so this pkg should be ignored by the method
+    trucked = make_delayed_deadline_pkg(
+        pid=1,
+        deadline=datetime.time(10, 30),
+        delay=datetime.time(9, 0),
+        truck=0
+    )
+
+    handler.handle_delayed_with_deadline_note([trucked], fl)
+
+    assert trucked.group is None
+
+
+def test_handle_delayed_with_deadline_note_is_idempotent():
+    fl = fleet.Fleet(1)
+    handler = ph.PackageHandler()
+
+    p1 = make_delayed_deadline_pkg(pid=0, deadline=datetime.time(10, 30), delay=datetime.time(9, 0))
+    p2 = make_delayed_deadline_pkg(pid=1, deadline=datetime.time(10, 15), delay=datetime.time(9, 0))
+
+    handler.handle_delayed_with_deadline_note([p1, p2], fl)
+    first_g1 = p1.group
+    first_g2 = p2.group
+
+    for _ in range(10):
+        handler.handle_delayed_with_deadline_note([p1, p2], fl)
+        assert p1.group == first_g1
+        assert p2.group == first_g2
+
 def test_handle_delayed_without_deadline_note_does_not_handle_packages_with_deadlines(sample_special_notes):
     fl = fleet.Fleet(1)
     handler = ph.PackageHandler()
@@ -538,14 +668,44 @@ def test_handle_with_package_note_is_idempotent(sample_w_notes):
     assert packages[1].priority == 0
     assert packages[4].priority == 0
     assert packages[0].priority == 0
-    assert packages[7].group == 0
-    assert packages[3].group == 0
-    assert packages[6].group == 1
-    assert packages[2].group == 1
-    assert packages[5].group == 2
-    assert packages[1].group == 2
-    assert packages[4].group == 2
-    assert packages[0].group == 2
+    assert packages[7].group == 3
+    assert packages[3].group == 3
+    assert packages[6].group == 4
+    assert packages[2].group == 4
+    assert packages[5].group == 5
+    assert packages[1].group == 5
+    assert packages[4].group == 5
+    assert packages[0].group == 5
+
+def test_handle_with_package_note_offsets_groups_when_existing_groups_present(monkeypatch):
+    table = hash_table.HashTable(size=4)
+
+    # Pre-existing grouped package in the list (simulates earlier grouping stage)
+    already_grouped = package.Package(99, "x", "x", "x", 0, "EOD", 1.0, None)
+    already_grouped.special_note = already_grouped.parse_special_note()
+    already_grouped.group = 10
+    already_grouped.priority = 2
+
+    # Two W-linked packages (1 with W note pointing to 2)
+    p1 = package.Package(1, "a", "b", "c", 0, "EOD", 1.0, "W, 2")
+    p2 = package.Package(2, "a2", "b2", "c2", 0, "EOD", 1.0, None)
+    p1.special_note = p1.parse_special_note()
+    p2.special_note = p2.parse_special_note()
+
+    # Must be in warehouse_hash for lookup by id inside handle_with_package_note
+    table.insert(already_grouped.package_id, already_grouped)
+    table.insert(p1.package_id, p1)
+    table.insert(p2.package_id, p2)
+    monkeypatch.setattr(ph, "get_warehouse_hash", lambda: table)
+
+    handler = ph.PackageHandler()
+    pkgs = [already_grouped, p1]  # p2 will be discovered via lookup and appended
+
+    pkgs = handler.handle_with_package_note(pkgs)
+
+    # Group ids should start after existing max group (10), so next should be 11
+    assert p1.group == 11
+    assert p2.group == 11
 
 def test_add_and_prioritize_remaining_packages_sets_special_note_none_to_4(patch_get_warehouse_hash):
     remaining_packages = []

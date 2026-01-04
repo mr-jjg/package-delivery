@@ -35,7 +35,8 @@ def run(num_trucks, num_drivers):
 
     # Read package data from packageCSV.csv file and store in the data_repository module for global access
     print("\nReading package data from packageCSV.csv file and storing in the 'warehouse_hash' table...")
-    package_data = read_package_data('packageCSV.csv')
+    #package_data = read_package_data('packageCSV.csv')
+    package_data = read_package_data('packages.csv')
     set_warehouse_hash(package_data)
     warehouse_hash = get_warehouse_hash()
     if VERBOSITY == "1":
@@ -135,8 +136,16 @@ def run(num_trucks, num_drivers):
         input()
 
 
-    # Handle special note: 'Delayed on flight' ('D' notes). The packages without a delivery deadline are considered lowest priority, and are handled by assignment to the last vehicle in the fleet without a driver.
-    print("\nHandling special note: 'Delayed on flight' ('D' notes)...")
+    # Handle special note: 'Delayed on flight' ('D' notes). The packages with a delivery deadline are considered highest priority, and without a delivery deadline are considered lowest priority.
+    print("\nHandling special note: 'Delayed on flight' ('D' notes) with a deadline...")
+    package_handler.handle_delayed_with_deadline_note(constraints_list, fleet)
+    if VERBOSITY == "1":
+        print(f"\nLength {len(constraints_list)} - all packages with special notes relating to delayed packages with a delivery deadline.\n")
+        print_package_list(constraints_list)
+        print("\nPress Enter to continue...")
+        input()
+
+    print("\nHandling special note: 'Delayed on flight' ('D' notes) without a deadline...")
     package_handler.handle_delayed_without_deadline_note(constraints_list, fleet)
     if VERBOSITY == "1":
         print(f"\nLength {len(constraints_list)} - all packages with special notes relating to delayed packages without a delivery deadline.\n")

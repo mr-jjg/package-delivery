@@ -1,12 +1,12 @@
 from hash_table import HashTable
 from warehouse_repository import get_warehouse_hash
-from package import Package, print_package_list, print_group_list
+from package import Package, print_package_list, print_group_list, parse_delayed_package
 from truck import Truck
 from datetime import time
 
 class PackageHandler:
     def __init__(self):
-        pass
+        self.max_group_number = -1
         
     
     def merge_addresses(self):
@@ -103,7 +103,66 @@ class PackageHandler:
                 #modified_package.truck = pkg.special_note[1] - 1
                 pkg.truck = pkg.special_note[1] - 1
         
-    
+
+    def handle_delayed_with_deadline_note(self, package_list, fleet):
+        if fleet.num_trucks == 0:
+            raise ValueError("Fleet is empty")
+
+        # Collect Priority 0 candidates (delivery deadline and delayed)
+        delayed_deadline = []
+        for pkg in package_list:
+            if pkg.priority != 0 or pkg.truck is not None:
+                continue
+            if pkg.group is not None:
+                continue
+            delayed_deadline.append(pkg)
+
+        if not delayed_deadline:
+            return
+
+        # Parse delay time and validate
+        for pkg in delayed_deadline:
+            if pkg.delay_time is None:
+                pkg.delay_time = pkg.special_note[1]
+
+            if pkg.delay_time > pkg.delivery_deadline:
+                raise ValueError(
+                    f"Package {pkg.package_id} arrives after its deadline:"
+                    f"({pkg.delay_time} > {pkg.delivery_deadline})"
+                )
+
+        # Sort and cluster
+        delayed_deadline.sort(key=lambda p: (p.delay_time, p.delivery_deadline))
+
+        clusters = []  # each: {"latest_delay": time, "earliest_deadline": time, "pkgs": []}
+        for pkg in delayed_deadline:
+            placed = False
+            for c in clusters:
+                new_latest = max(c["latest_delay"], pkg.delay_time)
+                new_earliest = min(c["earliest_deadline"], pkg.delivery_deadline)
+                if new_latest <= new_earliest:
+                    c["pkgs"].append(pkg)
+                    c["latest_delay"] = new_latest
+                    c["earliest_deadline"] = new_earliest
+                    placed = True
+                    break
+            if not placed:
+                clusters.append({
+                    "latest_delay": pkg.delay_time,
+                    "earliest_deadline": pkg.delivery_deadline,
+                    "pkgs": [pkg]
+                })
+
+        # 4) Assign group ids
+        existing = [p.group for p in package_list if p.group is not None]
+        next_group = (max(existing) + 1) if existing else 0
+
+        for c in clusters:
+            for pkg in c["pkgs"]:
+                pkg.group = next_group
+            next_group += 1
+
+
     def handle_delayed_without_deadline_note(self, package_list, fleet):
         if fleet.num_trucks == 0:
             raise ValueError("Fleet is empty")
@@ -159,9 +218,12 @@ class PackageHandler:
         '''
         
         # Set the group attribute of each package based on index of their parent container in result_groups_list
+        existing = [p.group for p in package_list if p.group is not None]
+        next_group = (max(existing) + 1) if existing else 0
+
         for i, group in enumerate(result_groups_list):
             for pkg in group:
-                pkg.group = i
+                pkg.group = next_group + i
         
         # Find the minimum priority in each package group, and assign each other package in that group with that priority.
         for package_group in result_groups_list:
