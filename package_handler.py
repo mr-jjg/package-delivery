@@ -24,6 +24,14 @@ class PackageHandler:
                 
                 earliest_deadline = min(i_package.delivery_deadline, j_package.delivery_deadline)
                 
+                def available_time(pkg):
+                    if pkg.special_note and pkg.special_note[0] == "D":
+                        return max(pkg.special_note[1], time(8, 0))
+                    return time(8, 0)
+                if max(available_time(i_package), available_time(j_package)) > earliest_deadline:
+                    # Skip merging shared-address packages if doing so would create an impossible delivery deadline
+                    continue
+
                 # i_package has a special note (not 'X') and j_package does not
                 tag = i_package.special_note[0] if i_package.special_note else None
                 if tag and tag != 'X' and j_package.special_note is None:
