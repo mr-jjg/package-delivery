@@ -19,15 +19,20 @@ parser.add_argument(
     default=0,
     help="Set verbosity level (0 = quiet, 1 = verbose)"
 )
+parser.add_argument(
+    "-p", "--package_csv",
+    default="default.csv",
+    help="CSV filename to load package data from"
+)
 args = parser.parse_args()
 VERBOSITY = str(args.verbosity)
+package_list = args.package_csv
 
 print("\nPress Enter to begin...")
 input()
-input()
 
 
-def run(num_trucks, num_drivers):
+def run(num_trucks, num_drivers, package_list):
     print("\n\n")
     print("-----------------------------------")
     print("           LOADING DATA            ")
@@ -35,8 +40,7 @@ def run(num_trucks, num_drivers):
 
     # Read package data from packageCSV.csv file and store in the data_repository module for global access
     print("\nReading package data from packageCSV.csv file and storing in the 'warehouse_hash' table...")
-    #package_data = read_package_data('packageCSV.csv')
-    package_data = read_package_data('packages.csv')
+    package_data = read_package_data(package_list)
     set_warehouse_hash(package_data)
     warehouse_hash = get_warehouse_hash()
     if VERBOSITY == "1":
@@ -268,7 +272,7 @@ if __name__ == "__main__":
                 print(f"    Fleet: {trucks} truck{'s' if trucks != 1 else ''}, {drivers} driver{'s' if drivers != 1 else ''}")
                 print("=" * 100 + "\n")
 
-            run(trucks, drivers)
+            run(trucks, drivers, package_list)
             break
 
         except SystemExit:

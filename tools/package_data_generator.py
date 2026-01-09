@@ -50,7 +50,7 @@ class PackageDataGenerator:
         if has_deadline:
             deadline_hour = parse_hour_24(pkg[5])
             delay_lower = self.dl_lower_band
-            delay_upper = min(self.dl_upper_band, deadline_hour - 1)
+            delay_upper = min(self.dl_upper_band, deadline_hour - 2)
             if delay_lower <= delay_upper:
                 notes.append("D")
         else:
@@ -77,7 +77,7 @@ class PackageDataGenerator:
         if has_deadline:
             deadline_hour = parse_hour_24(pkg[5])
             delay_lower = self.dl_lower_band
-            delay_upper = min(self.dl_upper_band, deadline_hour - 1)
+            delay_upper = min(self.dl_upper_band, deadline_hour - 2)
             pkg[7] = f"D, {make_random_time_string(delay_lower, delay_upper)}"
         else:
             pkg[7] = f"D, {make_random_time_string(self.dl_lower_band, self.dl_upper_band)}"
