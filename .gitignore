@@ -20,4 +20,5 @@ htmlcov/
 .idea/
 
 # Generated data
-packages.csv
+tmp/*.csv
+tmp/*.csv.*
