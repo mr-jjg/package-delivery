@@ -83,8 +83,15 @@ class PackageDataGenerator:
             pkg[7] = f"D, {make_random_time_string(self.dl_lower_band, self.dl_upper_band)}"
 
     def generate_csv_from_list(self, write_list, output_file=None):
+        base_dir = Path(__file__).resolve().parents[1]
+
         if output_file is None:
-            output_file = Path(__file__).resolve().parents[1] / "packages.csv"
+            output_file = base_dir / "packages.csv"
+        else:
+            output_file = Path(output_file)
+            if not output_file.is_absolute():
+                output_file = base_dir / "tmp" / output_file
+
 
         with output_file.open('w', encoding='utf-8', newline='') as f:
             writer = csv.writer(f)
@@ -108,6 +115,7 @@ def read_address_data(input):
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="PackageDataGenerator")
 
+    parser.add_argument("-o", "--output", type=str, default = "packages.csv", help="Specify output filename")
     parser.add_argument("-n", "--num_pkgs", type=int, default = 20, help="Set number of packages in PackageData")
     parser.add_argument("-c", "--constraints", type=int, default = 20, help="Set percentage of packages with constraints")
     parser.add_argument("-d", "--deadlines", type=int, default = 20, help="Set percentage of packages with deadlines")
@@ -122,7 +130,7 @@ def parse_args(argv=None):
     args.lower_bound = max(9, min(args.lower_bound, 16))
     args.upper_bound = max(10, min(args.upper_bound, 18))
 
-    return args.num_pkgs, args.constraints, args.deadlines, args.lower_bound, args.upper_bound
+    return args.output, args.num_pkgs, args.constraints, args.deadlines, args.lower_bound, args.upper_bound
 
 
 def make_random_time_string(lower_band, upper_band):
@@ -145,7 +153,7 @@ def parse_hour_24(time_str):
 
 def main():
     args = parse_args()
-    NUM_PKGS, PCT_CONSTRAINTS, PCT_DEADLINES, DL_LOWER_BOUND, DL_UPPER_BOUND = args
+    OUTPUT, NUM_PKGS, PCT_CONSTRAINTS, PCT_DEADLINES, DL_LOWER_BOUND, DL_UPPER_BOUND = args
 
     if DL_LOWER_BOUND > DL_UPPER_BOUND:
         DL_UPPER_BOUND, DL_LOWER_BOUND = DL_LOWER_BOUND, DL_UPPER_BOUND
@@ -157,10 +165,10 @@ def main():
         gen.assign_random_address(pkg)
         gen.assign_deadline(pkg)
         gen.assign_special_note(pkg)
-        print(pkg)
+        #print(pkg)
         write_list.append(pkg)
 
-    gen.generate_csv_from_list(write_list)
+    gen.generate_csv_from_list(write_list, OUTPUT)
 
 if __name__ == "__main__":
     main()
