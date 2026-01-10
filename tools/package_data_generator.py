@@ -10,7 +10,8 @@ class PackageDataGenerator:
 
         self.packages = [[i, "Address", "City", "State", "Zip Code", "EOD", "Weight Kilo", "None"] for i in range(num_pkgs)]
         self.pkg_ids = [pkg[0] for pkg in self.packages]
-        self.address_list = read_address_data('addressCSV.csv')
+        base_dir = Path(__file__).resolve().parents[1]
+        self.address_list = read_address_data(base_dir / 'addressCSV.csv')
         self.pct_constraints = pct_constraints / 100.0
         self.pct_deadlines = pct_deadlines / 100.0
         self.dl_lower_band = dl_lower_band
