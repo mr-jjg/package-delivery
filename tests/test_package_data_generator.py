@@ -437,8 +437,9 @@ def test_read_address_data_raises_on_nonint_id(tmp_path):
 def test_parse_args_returns_default_values():
     argv = []
     
-    NUM_PKGS, PCT_CONSTRAINTS, PCT_DEADLINES, DL_LOWER_BOUND, DL_UPPER_BOUND = pdg.parse_args(argv)
+    OUTPUT, NUM_PKGS, PCT_CONSTRAINTS, PCT_DEADLINES, DL_LOWER_BOUND, DL_UPPER_BOUND = pdg.parse_args(argv)
 
+    assert OUTPUT == "packages.csv"
     assert NUM_PKGS == 20
     assert PCT_CONSTRAINTS == 20
     assert PCT_DEADLINES == 20
@@ -446,10 +447,11 @@ def test_parse_args_returns_default_values():
     assert DL_UPPER_BOUND == 18
 
 def test_parse_args_returns_non_default_values():
-    argv = ['-n', '30', '-c', '25', '-d', '75', '-l', '13', '-u', '14']
+    argv = ['-o', 'output.csv', '-n', '30', '-c', '25', '-d', '75', '-l', '13', '-u', '14']
     
-    NUM_PKGS, PCT_CONSTRAINTS, PCT_DEADLINES, DL_LOWER_BOUND, DL_UPPER_BOUND = pdg.parse_args(argv)
+    OUTPUT, NUM_PKGS, PCT_CONSTRAINTS, PCT_DEADLINES, DL_LOWER_BOUND, DL_UPPER_BOUND = pdg.parse_args(argv)
 
+    assert OUTPUT == "output.csv"
     assert NUM_PKGS == 30
     assert PCT_CONSTRAINTS == 25
     assert PCT_DEADLINES == 75
@@ -459,7 +461,7 @@ def test_parse_args_returns_non_default_values():
 def test_parse_args_adjusts_to_floor_for_all_low_values():
     argv = ['-n', '19', '-c', '-1', '-d', '-1', '-l', '8', '-u', '9']
 
-    NUM_PKGS, PCT_CONSTRAINTS, PCT_DEADLINES, DL_LOWER_BOUND, DL_UPPER_BOUND = pdg.parse_args(argv)
+    OUTPUT, NUM_PKGS, PCT_CONSTRAINTS, PCT_DEADLINES, DL_LOWER_BOUND, DL_UPPER_BOUND = pdg.parse_args(argv)
 
     assert NUM_PKGS == 20
     assert PCT_CONSTRAINTS == 0
@@ -470,7 +472,7 @@ def test_parse_args_adjusts_to_floor_for_all_low_values():
 def test_parse_args_adjusts_to_ceiling_for_all_high_values():
     argv = ['-n', '41', '-c', '100', '-d', '100', '-l', '17', '-u', '19']
 
-    NUM_PKGS, PCT_CONSTRAINTS, PCT_DEADLINES, DL_LOWER_BOUND, DL_UPPER_BOUND = pdg.parse_args(argv)
+    OUTPUT, NUM_PKGS, PCT_CONSTRAINTS, PCT_DEADLINES, DL_LOWER_BOUND, DL_UPPER_BOUND = pdg.parse_args(argv)
 
     assert NUM_PKGS == 40
     assert PCT_CONSTRAINTS == 100
