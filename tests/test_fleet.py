@@ -1,4 +1,5 @@
 # tests/test_fleet.py
+import pytest
 from fleet import Fleet
 from truck import Truck
 
@@ -55,3 +56,29 @@ def test_fleet_is_iterable():
     f = Fleet(3)
     collected_ids = [t.truck_id for t in f]
     assert collected_ids == [0, 1, 2]
+
+def test_get_truck_ids_returns_ids():
+    fleet = Fleet(3)
+    fleet.truck_list = [
+        Truck(truck_id=9),
+        Truck(truck_id=7),
+        Truck(truck_id=2),
+    ]
+
+    assert set(fleet.get_truck_ids()) == {9, 7, 2}
+
+def test_get_truck_ids_raise_on_empty_fleet():
+    fleet = Fleet(0)
+
+    with pytest.raises(ValueError):
+        fleet.get_truck_ids()
+
+def test_get_truck_ids_returns_new_list_not_reference():
+    fleet = Fleet(2)
+    fleet.truck_list = [Truck(truck_id=0), Truck(truck_id=1)]
+
+    ids = fleet.get_truck_ids()
+    ids.append(999)
+
+    # Returned list changed, underlying fleet did not.
+    assert fleet.get_truck_ids() == [0, 1]

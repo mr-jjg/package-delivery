@@ -1,3 +1,4 @@
+from fleet import Fleet
 from hash_table import HashTable
 from warehouse_repository import get_warehouse_hash
 from package import Package, print_package_list, print_group_list, parse_delayed_package
@@ -101,15 +102,25 @@ class PackageHandler:
                 pkg.priority = 3
         
     
-    def handle_with_truck_note(self, package_list):
+    def handle_with_truck_note(self, package_list, fleet):
         warehouse_hash = get_warehouse_hash()
+        truck_ids = fleet.get_truck_ids()
         
         for pkg in package_list[:]:
-            if pkg.special_note and pkg.special_note[0] == 'T':
-                #modified_package = warehouse_hash.search(pkg.package_id)
-                # Truck minus one, because this will be the index of the fleet.
-                #modified_package.truck = pkg.special_note[1] - 1
-                pkg.truck = pkg.special_note[1] - 1
+            if not pkg.special_note:
+                continue
+
+            if pkg.special_note[0] != 'T':
+                continue
+
+            truck_num = pkg.special_note[1]
+            truck_id = truck_num - 1 # truck_num minus one, because this will be 0-based index.
+
+            if truck_id not in truck_ids:
+                allowed = sorted(tid + 1 for tid in truck_ids)  # convert back to human numbers
+                raise SystemExit(f"Package {pkg.package_id}: invalid truck {truck_num}. Allowed: {allowed}")
+
+            pkg.truck = truck_id
         
 
     def handle_delayed_with_deadline_note(self, package_list, fleet):

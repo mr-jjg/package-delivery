@@ -44,6 +44,32 @@ def patch_get_warehouse_hash(monkeypatch, sample_table):
     monkeypatch.setattr(ph, "get_warehouse_hash", lambda: table)
     return packages
 
+@pytest.fixture
+def sample_special_notes_parsed():
+    """
+    Mirrors the intent of your existing sample_special_notes fixture:
+    - Two T-notes that should set truck (T,1) and (T,2)
+    - Remaining packages should not be mutated by handle_with_truck_note
+    """
+    pkgs = [
+        # should be set -> 0
+        make_pkg(pid=1, note=["T", 1]),
+        # should be set -> 1
+        make_pkg(pid=2, note=["T", 2]),
+        # should not be modified
+        make_pkg(pid=3, note=None),
+        make_pkg(pid=4, note=["D", "9:05 AM"]),
+        make_pkg(pid=5, note=["X", "10:20 AM", "410 S State St", "Salt Lake City", "UT", 84111]),
+        make_pkg(pid=6, note=["W", 15, 19]),
+        make_pkg(pid=7, note=None),
+        make_pkg(pid=8, note=None),
+        make_pkg(pid=9, note=None),
+    ]
+    # ensure all trucks start unset
+    for p in pkgs:
+        p.truck = None
+    return pkgs
+
 def snapshot(packages):
     return [(p.package_id, p.address, p.delivery_deadline, p.special_note) for p in packages]
 
@@ -387,8 +413,9 @@ def sample_special_notes(monkeypatch):
     return packages
 
 def test_handle_with_truck_note_sets_truck(sample_special_notes):
+    fl = fleet.Fleet(2)
     handler = ph.PackageHandler()
-    handler.handle_with_truck_note(sample_special_notes)
+    handler.handle_with_truck_note(sample_special_notes, fl)
     modified = [pkg.package_id for pkg in sample_special_notes if pkg.truck is not None]
     assert len(modified) == 2
     assert modified == [1, 2]
@@ -396,21 +423,77 @@ def test_handle_with_truck_note_sets_truck(sample_special_notes):
     assert sample_special_notes[1].truck == 1
 
 def test_handle_with_truck_does_not_mutate_other_packages(sample_special_notes):
+    _ = fleet.Fleet(2)
     handler = ph.PackageHandler()
-    handler.handle_with_truck_note(sample_special_notes)
+    handler.handle_with_truck_note(sample_special_notes, _)
     not_modified = [pkg.package_id for pkg in sample_special_notes if pkg.truck is None]
     assert len(not_modified) == 7
     assert not_modified == [3, 4, 5, 6, 7, 8, 9]
 
 def test_handle_with_truck_idempotence(sample_special_notes):
+    _ = fleet.Fleet(2)
     handler = ph.PackageHandler()
-    handler.handle_with_truck_note(sample_special_notes)
+    handler.handle_with_truck_note(sample_special_notes, _)
     assert sample_special_notes[0].truck == 0
     assert sample_special_notes[1].truck == 1
     for i in range(10):
-        handler.handle_with_truck_note(sample_special_notes)
+        handler.handle_with_truck_note(sample_special_notes, _)
         assert sample_special_notes[0].truck == 0
         assert sample_special_notes[1].truck == 1
+
+def test_handle_with_truck_note_ignores_non_t_notes(sample_special_notes_parsed):
+    """
+    Explicitly asserts that notes like D/X/W do not affect truck assignment.
+    """
+    fl = fleet.Fleet(2)
+    fl.truck_list = [truck.Truck(truck_id=0), truck.Truck(truck_id=1)]
+    handler = ph.PackageHandler()
+
+    # pick one package with a non-T note and pre-set its truck to verify it stays unchanged
+    sample_special_notes_parsed[3].truck = 123  # package_id=4 has ["D", ...] in the fixture
+
+    handler.handle_with_truck_note(sample_special_notes_parsed, fl)
+
+    assert sample_special_notes_parsed[3].truck == 123  # unchanged
+    assert sample_special_notes_parsed[4].truck is None
+    assert sample_special_notes_parsed[5].truck is None
+
+def test_handle_with_truck_note_raises_systemexit_when_truck_not_in_fleet():
+    """
+    Fleet has only truck_id=0 available, but package demands truck 2 (-> truck_id=1).
+    Should raise SystemExit so main loop can retry with more trucks/drivers.
+    """
+    fl = fleet.Fleet(1)
+    fl.truck_list = [truck.Truck(truck_id=0)]
+    handler = ph.PackageHandler()
+
+    pkgs = [
+        make_pkg(pid=1, note=["T", 2]),  # invalid given fl
+        make_pkg(pid=2, note=None),
+    ]
+    for p in pkgs:
+        p.truck = None
+
+    with pytest.raises(SystemExit):
+        handler.handle_with_truck_note(pkgs, fl)
+
+    # Ensure nothing got partially assigned before exit
+    assert pkgs[0].truck is None
+    assert pkgs[1].truck is None
+
+def test_handle_with_truck_note_allows_truck_id_zero_based_fleet_ids():
+    """
+    Defensive: if fleet IDs are [0,1], T,1 maps to 0 and is valid.
+    """
+    fl = fleet.Fleet(2)
+    fl.truck_list = [truck.Truck(truck_id=0), truck.Truck(truck_id=1)]
+    handler = ph.PackageHandler()
+    pkgs = [make_pkg(pid=1, note=["T", 1])]
+    pkgs[0].truck = None
+
+    handler.handle_with_truck_note(pkgs, fl)
+
+    assert pkgs[0].truck == 0
 
 @pytest.mark.parametrize(
     "t_note, expected",
@@ -424,11 +507,12 @@ def test_handle_with_truck_idempotence(sample_special_notes):
     ]
 )
 def test_handle_with_truck_incorrect_input_is_not_set(t_note, expected):
+    fl = fleet.Fleet(1)
     pkg = package.Package(1, "123 Maple Street", "Springfield", "IL", 62701, "10:00 AM", 2.5, t_note)
     table = hash_table.HashTable(size=1)
     table.insert(pkg.package_id, pkg)
     handler = ph.PackageHandler()
-    handler.handle_with_truck_note([pkg])
+    handler.handle_with_truck_note([pkg], fl)
     assert pkg.truck is None
     assert pkg.special_note == t_note
 
@@ -936,8 +1020,8 @@ def sample_unsorted_list(monkeypatch):
     handler.merge_addresses()
     constraints_list = handler.build_constraints_list()
     handler.set_package_priorities(constraints_list)
-    handler.handle_with_truck_note(constraints_list)
     fl = fleet.Fleet(2)
+    handler.handle_with_truck_note(constraints_list, fl)
     handler.handle_delayed_without_deadline_note(constraints_list, fl)
     constraints_list = handler.handle_with_package_note(constraints_list)
     handler.add_and_prioritize_remaining_packages(constraints_list)

@@ -47,4 +47,9 @@ class Fleet:
         
         return empty_truck_list
 
+    def get_truck_ids(self):
+        # Iterate through the fleet and return a list of truck IDs
+        if not self.truck_list or self.num_trucks == 0:
+            raise ValueError("Fleet has no truck")
+        return[t.truck_id for t in self.truck_list]
 #jjg

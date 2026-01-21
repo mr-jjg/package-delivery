@@ -132,7 +132,7 @@ def run(num_trucks, num_drivers, package_list):
 
     # Handle special_note: 'Can only be on truck n' ('T' notes)
     print("\nHandling special_note: 'Can only be on truck n' ('T' notes)...")
-    package_handler.handle_with_truck_note(constraints_list)
+    package_handler.handle_with_truck_note(constraints_list, fleet)
     if VERBOSITY == "1":
         print(f"\nLength {len(constraints_list)} - all packages with special notes relating to packages that must be delivered with specific trucks: \n")
         print_package_list(constraints_list)
