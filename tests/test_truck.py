@@ -1,5 +1,6 @@
 # tests/test_truck.py
 import datetime as dt
+import pytest
 from truck import Truck
 
 def test_str_includes_key_fields():
@@ -22,6 +23,18 @@ def test_str_includes_key_fields():
     assert "Return Time: 12:30 PM" in s
     assert "Driver: M.E. Archer" in s
     assert "Packages: None" in s
+
+@pytest.mark.parametrize("invalid_truck_id", [
+    "one",
+    -1,
+    1.0,
+    True,
+    [],
+    object(),
+])
+def test_truck_raises_for_invalid_truck_id(invalid_truck_id):
+    with pytest.raises(ValueError):
+        t = Truck(truck_id=invalid_truck_id)
 
 def test_lt_sorts_by_truck_id():
     t1 = Truck(truck_id=3)

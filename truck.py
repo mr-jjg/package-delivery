@@ -11,6 +11,9 @@ class Truck:
                  departure_address='4001 South 700 East',
                  package_list=None, 
                  route_distance=0.0,):
+        if truck_id is not None:
+            if type(truck_id) is not int or truck_id < 0:
+                raise ValueError(f"Invalid truck_id: {truck_id}")
         if package_list is None:
             package_list = []
         self.truck_id = truck_id
