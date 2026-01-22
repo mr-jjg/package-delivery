@@ -1,4 +1,4 @@
-from warehouse_repository import set_warehouse_hash, get_warehouse_hash
+from warehouse_repository import set_warehouse_hash, get_warehouse_hash, set_warehouse_base, reset_warehouse
 from address_repository import set_address_list
 from distance_repository import set_distance_matrix, print_distance_matrix
 from project_data import read_package_data, read_address_data, read_distance_data
@@ -32,16 +32,17 @@ print("\nPress Enter to begin...")
 input()
 
 
-def run(num_trucks, num_drivers, package_list):
+def read_data(package_list):
     print("\n\n")
     print("-----------------------------------")
-    print("           LOADING DATA            ")
+    print("           READING DATA            ")
     print("-----------------------------------")
 
     # Read package data from packageCSV.csv file and store in the data_repository module for global access
     print("\nReading package data from packageCSV.csv file and storing in the 'warehouse_hash' table...")
     package_data = read_package_data(package_list)
     set_warehouse_hash(package_data)
+    set_warehouse_base(package_data)
     warehouse_hash = get_warehouse_hash()
     if VERBOSITY == "1":
         print("\nPrinting warehouse_hash:")
@@ -66,6 +67,11 @@ def run(num_trucks, num_drivers, package_list):
         print("\nPrinting distance_matrix:")
         print_distance_matrix(distance_matrix)
 
+def run(num_trucks, num_drivers):
+    print("\n\n")
+    print("-----------------------------------")
+    print("          PREPARING FLEET          ")
+    print("-----------------------------------")
 
     # Instantiate a fleet with 3 trucks and 2 drivers
     truck_word  = "truck"  if num_trucks  == 1 else "trucks"
@@ -261,10 +267,13 @@ def run(num_trucks, num_drivers, package_list):
     delivery_handler.deliver_packages(fleet)
 
 if __name__ == "__main__":
+    read_data(package_list)
+
     trucks, drivers = 1, 1
     fail_count = 0
 
     while True:
+        reset_warehouse()
         try:
             if fail_count > 0:
                 print("\n\n" + "=" * 100)
@@ -272,7 +281,7 @@ if __name__ == "__main__":
                 print(f"    Fleet: {trucks} truck{'s' if trucks != 1 else ''}, {drivers} driver{'s' if drivers != 1 else ''}")
                 print("=" * 100 + "\n")
 
-            run(trucks, drivers, package_list)
+            run(trucks, drivers)
             break
 
         except SystemExit:
