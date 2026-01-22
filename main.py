@@ -220,7 +220,7 @@ def run(num_trucks, num_drivers, package_list):
 
 
     # Load the trucks that currently have drivers
-    print("\nLoading the trucks with drivers first...")
+    print("\nLoading the trucks with drivers first until no packages with deadlines are unloaded...")
     package_loader.load_packages(fleet, load_ready_list, VERBOSITY, drivers)
     if VERBOSITY == "1":
         print("\n\n'load_ready_list':")

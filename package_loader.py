@@ -90,18 +90,22 @@ class PackageLoader:
             count += 1
             vprint(f"\nIteration: {count} -----------------------------------------------------------------------------------------------", verbosity)
             
-            # From the package_groups, build a working_package_list based upon the package at the top of the priority list, aka the 'zero_package'.
-            working_package_list = build_working_package_list(package_groups) # This method pops from package_groups
-            
             '''# DEBUG ONLY
             print(f"\n'working_package_list' at the beginning of an iteration\n")
             print_package_list(working_package_list)
             '''
+            # If no deadline packages remain among unassigned groups, widen candidates to all trucks.
+            if not any(pkg.priority < 2 for package_group in package_groups for pkg in package_group):
+                truck_list = [tr for tr in fleet.truck_list]
+
             vprint(f"\ncurrent_capacity of each truck:", verbosity)
             if verbosity == "1":
                 for truck in truck_list:
                     print(f"  {truck.truck_id }: {truck.current_capacity}")
             
+            # From the package_groups, build a working_package_list based upon the package at the top of the priority list, aka the 'zero_package'.
+            working_package_list = build_working_package_list(package_groups) # This method pops from package_groups
+
             available_trucks = get_trucks_with_available_capacity(truck_list, len(working_package_list))
             
             # If adding the working_package_list exceeds current_capacity for all trucks, packages will need to be split up using k_means
