@@ -74,8 +74,8 @@ def read_data(package_list):
     reporter.run_if(VerbosityLevel.INFO, lambda: print_distance_matrix(distance_matrix))
 
 
-    reporter.report(VerbosityLevel.INFO, "\nPress Enter to continue...")
-    reporter.run_if(VerbosityLevel.INFO, input)
+    reporter.report(VerbosityLevel.PROG, "\nPress Enter to continue...")
+    reporter.run_if(VerbosityLevel.PROG, input)
 
 
 def run(num_trucks, num_drivers):
@@ -125,8 +125,8 @@ def run(num_trucks, num_drivers):
     reporter.run_if(VerbosityLevel.INFO, lambda: print_package_list(constraints_list))
 
 
-    reporter.report(VerbosityLevel.PROG, "\nPress Enter to continue...")
-    reporter.run_if(VerbosityLevel.PROG, input)
+    reporter.report(VerbosityLevel.INFO, "\nPress Enter to continue...")
+    reporter.run_if(VerbosityLevel.INFO, input)
 
 
     # This returns a list grouping packages by priority solely for the purposes of a visual aid. The important thing to note is that the priority attribute of each package in the constraints_list is set based upon the following criteria:
@@ -142,20 +142,20 @@ def run(num_trucks, num_drivers):
     reporter.run_if(VerbosityLevel.INFO, lambda: print_package_list(constraints_list))
 
 
-    reporter.report(VerbosityLevel.PROG, "\nPress Enter to continue...")
-    reporter.run_if(VerbosityLevel.PROG, input)
+    reporter.report(VerbosityLevel.INFO, "\nPress Enter to continue...")
+    reporter.run_if(VerbosityLevel.INFO, input)
 
 
-    # Handle special_note: 'Can only be on truck n' ('T' notes)
-    reporter.report(VerbosityLevel.PROG, "\nHandling special_note: 'Can only be on truck n' ('T' notes)...")
+    # Handle special note: 'Can only be on truck n' ('T' notes)
+    reporter.report(VerbosityLevel.PROG, "\nHandling special note: 'Can only be on truck n' ('T' notes)...")
     package_handler.handle_with_truck_note(constraints_list, fleet)
 
     reporter.report(VerbosityLevel.INFO, f"\nLength {len(constraints_list)} - all packages with special notes relating to packages that must be delivered with specific trucks: \n")
     reporter.run_if(VerbosityLevel.INFO, lambda: print_package_list(constraints_list))
 
 
-    reporter.report(VerbosityLevel.PROG, "\nPress Enter to continue...")
-    reporter.run_if(VerbosityLevel.PROG, input)
+    reporter.report(VerbosityLevel.INFO, "\nPress Enter to continue...")
+    reporter.run_if(VerbosityLevel.INFO, input)
 
 
     # Handle special note: 'Delayed on flight' ('D' notes). The packages with a delivery deadline are considered highest priority, and without a delivery deadline are considered lowest priority.
@@ -166,8 +166,8 @@ def run(num_trucks, num_drivers):
     reporter.run_if(VerbosityLevel.INFO, lambda: print_package_list(constraints_list))
 
 
-    reporter.report(VerbosityLevel.PROG, "\nPress Enter to continue...")
-    reporter.run_if(VerbosityLevel.PROG, input)
+    reporter.report(VerbosityLevel.INFO, "\nPress Enter to continue...")
+    reporter.run_if(VerbosityLevel.INFO, input)
 
 
     reporter.report(VerbosityLevel.PROG, "\nHandling special note: 'Delayed on flight' ('D' notes) without a deadline...")
@@ -177,32 +177,32 @@ def run(num_trucks, num_drivers):
     reporter.run_if(VerbosityLevel.INFO, lambda: print_package_list(constraints_list))
 
 
-    reporter.report(VerbosityLevel.PROG, "\nPress Enter to continue...")
-    reporter.run_if(VerbosityLevel.PROG, input)
+    reporter.report(VerbosityLevel.INFO, "\nPress Enter to continue...")
+    reporter.run_if(VerbosityLevel.INFO, input)
 
 
     # Handle special note: 'Must be delivered with x' ('W' notes). This clever algorithm uses the properties of sets to first build a list of sets before merging all sets that share common values into the smallest group of sets. The idea for handling this special note occured to me when I was boiling water; I watched while the condensation built until eventually the larger droplets bump into the smaller droplets and absorb them until their mass can no longer keep them hanging upside down and finally racing down the slope of the clear glass lid into the oblivion below. I had to work the KruskalsMinimumSpanningTree algorithm out by hand multiple times and augment it to fit my purposes, but I was thrilled enough with the results that I moved the logic for merging sets into a helper function. This algorithm also sets the package.group and the package.priority attributes of each package so they are sure to be loaded onto the same truck.
     reporter.report(VerbosityLevel.PROG, "\nHandling special note: 'Must be delivered with x' ('W' notes)...")
     constraints_list = package_handler.handle_with_package_note(constraints_list)
 
-    reporter.report(VerbosityLevel.INFO, f"\n'constraints_list' len: {len(constraints_list)} - added packages grouped with packages that have the 'W' constraint, as they have the constraint by association. Set the group attribute of each package as needed.")
+    reporter.report(VerbosityLevel.INFO, f"\n'constraints_list' len: {len(constraints_list)} - added packages grouped with packages that have the 'W' constraint, as they have the constraint by association. Set the group attribute of each package as needed.\n")
     reporter.run_if(VerbosityLevel.INFO, lambda: print_package_list(constraints_list))
 
 
-    reporter.report(VerbosityLevel.PROG, "\nPress Enter to continue...")
-    reporter.run_if(VerbosityLevel.PROG, input)
+    reporter.report(VerbosityLevel.INFO, "\nPress Enter to continue...")
+    reporter.run_if(VerbosityLevel.INFO, input)
 
 
     # Handles the remaining packages by building a list of all packages not in constraints_list, setting their priority to 4, and appending to form one list that contains all the packages in the warehouse.
     reporter.report(VerbosityLevel.PROG, "\nHandling the remaining packages...")
     package_handler.add_and_prioritize_remaining_packages(constraints_list)
 
-    reporter.report(VerbosityLevel.INFO, f"\n'constraints_list' len: {len(constraints_list)} - all of the remaining packages in the warehouse have been prioritized and added to the constraints_list.")
+    reporter.report(VerbosityLevel.INFO, f"\n'constraints_list' len: {len(constraints_list)} - all of the remaining packages in the warehouse have been prioritized and added to the constraints_list.\n")
     reporter.run_if(VerbosityLevel.INFO, lambda: print_package_list(constraints_list))
 
 
-    reporter.report(VerbosityLevel.PROG, "\nPress Enter to continue...")
-    reporter.run_if(VerbosityLevel.PROG, input)
+    reporter.report(VerbosityLevel.INFO, "\nPress Enter to continue...")
+    reporter.run_if(VerbosityLevel.INFO, input)
 
 
     # Finally, sort based on priority and then by group for easier iteration.
@@ -256,7 +256,7 @@ def run(num_trucks, num_drivers):
     package_loader.load_packages(fleet, load_ready_list, reporter)
 
     reporter.report(VerbosityLevel.INFO, "\nThe fleet is loaded and ready for delivery.")
-    reporter.run_if(VerbosityLevel.INFO, fleet.print_fleet())
+    reporter.run_if(VerbosityLevel.INFO, lambda: fleet.print_fleet())
 
 
     reporter.report(VerbosityLevel.PROG, "\nPress Enter to continue...")
@@ -296,8 +296,10 @@ if __name__ == "__main__":
             if fail_count > 0:
                 reporter.report(VerbosityLevel.PROG, "\n\n" + "=" * 100)
                 reporter.report(VerbosityLevel.PROG, f"    RESTARTING DELIVERY SIMULATION (Attempt #{fail_count})")
-                reporter.report(VerbosityLevel.PROG, f"    Fleet: {trucks} truck{'s' if trucks != 1 else ''}, {drivers} driver{'s' if drivers != 1 else ''}")
+                reporter.report(VerbosityLevel.PROG, f"    Fleet: {trucks} truck{'s' if trucks != 1 else ''}, {drivers} driver{'s' if drivers != 1 else ''}\n")
+                reporter.report(VerbosityLevel.PROG, "\n    Press Enter to continue...")
                 reporter.report(VerbosityLevel.PROG, "=" * 100 + "\n")
+                reporter.run_if(VerbosityLevel.PROG, input)
 
             run(trucks, drivers)
             break
