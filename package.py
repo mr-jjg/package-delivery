@@ -121,7 +121,8 @@ class Package:
 # Helper function that prints a list of packages
 def print_package_list(package_list):
     
-    headers = ["ID", "Address", "City", "State", "Zip", "Deadline", "Weight", "Note", "Status", "Delivery Time", "Truck", "Group", "Priority"]
+    headers = ["ID", "Address", "Deadline", "Note", "Truck", "Group", "Priority"]
+    #"City", "State", "Zip", "Weight", "Status", "Delivery Time", 
     # Initialize max widths with header lengths
     col_widths = [len(header) for header in headers]
     rows = []
@@ -130,14 +131,14 @@ def print_package_list(package_list):
         row = [
             str(package.package_id),
             package.address,
-            package.city,
-            package.state,
-            package.zip_code,
-            package.delivery_deadline.strftime("%I:%M %p") if hasattr(package.delivery_deadline, 'strftime') else str(package.delivery_deadline),
-            str(package.weight_kilo),
+            #package.city,
+            #package.state,
+            #package.zip_code,
+            package.get_deadline_str(),
+            #str(package.weight_kilo),
             package.get_special_note_str(),
-            package.delivery_status,
-            package.time_of_delivery.strftime("%I:%M %p") if hasattr(package, 'time_of_delivery') and package.time_of_delivery else "None",
+            #package.delivery_status,
+            #package.time_of_delivery.strftime("%I:%M %p") if hasattr(package, 'time_of_delivery') and package.time_of_delivery else "None",
             str(package.truck) if package.truck is not None else "None",
             str(package.group) if package.group is not None else "None",
             str(package.priority) if package.priority is not None else "None"
