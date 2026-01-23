@@ -98,7 +98,7 @@ class DeliveryHandler:
                 # Prepare strings for output
                 time_str = actual_time.strftime("%H:%M")
                 deadline_str = package.delivery_deadline.strftime("%H:%M") if package.delivery_deadline != package.EOD_TIME else 'EOD'
-                met_deadline = (actual_time < package.delivery_deadline) if package.delivery_deadline != package.EOD_TIME else None
+                met_deadline = (actual_time <= package.delivery_deadline) if package.delivery_deadline != package.EOD_TIME else None
                 met_deadline_str = f" Met deadline: {met_deadline}" if met_deadline is not None else ""
                 
                 # Output
