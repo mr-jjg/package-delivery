@@ -6,11 +6,12 @@ from fleet import Fleet
 from k_means import split_package_list
 from nearest_neighbor import nearest_neighbor
 from route_optimizer import check_route_feasibility
+from tools.reporter import Reporter, VerbosityLevel
 
 class PackageLoader:
     pass
 
-    def load_assigned_trucks(self, fleet, package_groups, verbosity):
+    def load_assigned_trucks(self, fleet, package_groups, reporter):
         warehouse_hash = get_warehouse_hash()
         
         for i, group in enumerate(package_groups):
@@ -22,7 +23,7 @@ class PackageLoader:
                 ):
                     truck = fleet.truck_list[truck_to_load]
                     if truck.current_capacity > 0:
-                        vprint(f"  -LOADING Package {pkg.package_id} ONTO Truck {truck.truck_id + 1}", verbosity)
+                        reporter.report(VerbosityLevel.PROG, f"  -LOADING Package {pkg.package_id} ONTO Truck {truck.truck_id + 1}")
                         truck.package_list.append(pkg)
                         truck.current_capacity -= 1
                         package_groups[i].remove(pkg)
@@ -30,7 +31,7 @@ class PackageLoader:
         remove_empty_groups(package_groups)
         
     
-    def load_empty_trucks_with_drivers(self, fleet, package_groups, verbosity, drivers):
+    def load_empty_trucks_with_drivers(self, fleet, package_groups, reporter, drivers):
         warehouse_hash = get_warehouse_hash()
         
         # Highest priority packages need to go onto empty trucks that have drivers (Ready to roll).
@@ -52,10 +53,7 @@ class PackageLoader:
             # If the working_package_list does not have any 'W' notes, then we can check to see if the capacity is sufficient to load the entire list.
             if len(working_package_list) > empty_truck.maximum_capacity:
                 if w_note:
-                    vprint(
-                    f"Working package list with 'W' note cannot fit on truck {empty_truck.truck_id + 1}.",
-                    verbosity,
-                    )
+                    reporter.report(VerbosityLevel.INFO, f"Working package list with 'W' note cannot fit on truck {empty_truck.truck_id + 1}.")
                     raise SystemExit(1)
                 else:
                     working_package_list = split_package_list(empty_truck, package_groups, working_package_list)
@@ -66,13 +64,14 @@ class PackageLoader:
                 empty_truck.package_list.append(pkg)
                 empty_truck.current_capacity -= 1
             
-            print_loading_packages(empty_truck, working_package_list, verbosity)
+            print_loading_packages(empty_truck, working_package_list, reporter.verbosity)
             
             remove_empty_groups(package_groups)
         
     
     # This method is the heart of the package_loader, and is quite huge. It has gone through several refactors, and in this final version I have done my best to clarify what's going on throughout.
-    def load_packages(self, fleet, package_groups, verbosity, drivers=None):
+    def load_packages(self, fleet, package_groups, reporter, drivers=None):
+        verbosity = reporter.verbosity
         
         warehouse_hash = get_warehouse_hash()
         
@@ -88,7 +87,7 @@ class PackageLoader:
         # Load the packages
         while package_groups and truck_list:
             count += 1
-            vprint(f"\nIteration: {count} -----------------------------------------------------------------------------------------------", verbosity)
+            reporter.report(VerbosityLevel.INFO, f"\nIteration: {count} -----------------------------------------------------------------------------------------------")
             
             '''# DEBUG ONLY
             print(f"\n'working_package_list' at the beginning of an iteration\n")
@@ -98,8 +97,8 @@ class PackageLoader:
             if not any(pkg.priority < 2 for package_group in package_groups for pkg in package_group):
                 truck_list = [tr for tr in fleet.truck_list]
 
-            vprint(f"\ncurrent_capacity of each truck:", verbosity)
-            if verbosity == "1":
+            reporter.report(VerbosityLevel.INFO, f"\ncurrent_capacity of each truck:")
+            if verbosity == 2:
                 for truck in truck_list:
                     print(f"  {truck.truck_id }: {truck.current_capacity}")
             
@@ -122,7 +121,7 @@ class PackageLoader:
             # Step 3: Load the optimal truck by fixing the package_list, current_capacity, and route_distance attributes
             optimal_truck = best_option[0]
             
-            vprint(f"\nTruck {optimal_truck.truck_id + 1} produced the optimal feasible route with a minimum distances of {best_option[2]:.1f}", verbosity)
+            reporter.report(VerbosityLevel.INFO, f"\nTruck {optimal_truck.truck_id + 1} produced the optimal feasible route with a minimum distances of {best_option[2]:.1f}")
             load_optimal_truck(best_option)
             print_loading_packages(optimal_truck, working_package_list, verbosity)
             # Remove the optimal truck if it is at capacity.
@@ -135,10 +134,6 @@ class PackageLoader:
     
 
 # Helper functions
-
-def vprint(msg, level):
-    if level == "1":
-        print(msg)
 
 def adjust_working_list_for_capacity(truck_list, package_groups, working_package_list, verbosity):
     # First see which trucks can take the *full* list
@@ -217,7 +212,7 @@ def get_trucks_with_available_capacity(truck_list, list_length):
 def build_feasible_routes(available_trucks, working_package_list, verbosity, count):
     feasible_routes_list = []
     for truck in available_trucks:
-        if verbosity == "1": vprint(f"\nTesting Truck {truck.truck_id + 1} for feasibility", verbosity)
+        if verbosity == 2: print(f"\nTesting Truck {truck.truck_id + 1} for feasibility")
 
         test_package_list =  truck.package_list + working_package_list
 
@@ -233,7 +228,7 @@ def build_feasible_routes(available_trucks, working_package_list, verbosity, cou
             feasible_routes_list.append((truck, test_route, test_route_distance))
 
     if not feasible_routes_list:
-        if verbosity == "1": vprint(f"\nThere are no feasible routes. Exiting at 'load_packages' at iteration {count}.", verbosity)
+        if verbosity == 2: print(f"\nThere are no feasible routes. Exiting at 'load_packages' at iteration {count}.")
         raise SystemExit(1)
 
     return feasible_routes_list
@@ -306,10 +301,8 @@ def load_optimal_truck(tuple):
     
 
 def print_loading_packages(truck, package_list, verbosity):
-    if verbosity == "0":
+    if verbosity == 0:
         return
-    
-    print (f"verbosity: {verbosity}")
     
     for pkg in package_list:
         print(f"  -LOADING Package {pkg.package_id} ONTO Truck {truck.truck_id + 1}")
