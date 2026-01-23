@@ -7,6 +7,13 @@ import package_loader as pl
 import truck
 import fleet
 
+class NullReporter:
+    def __init__(self, verbosity=0):
+        self.verbosity = verbosity
+
+    def report(self, level, msg):
+        pass
+
 @pytest.fixture
 def fake_split(monkeypatch):
     """
@@ -507,25 +514,23 @@ class TestHelpers:
         for i in range(3):
             assert before[i] != after[i]
 
-    def test_print_loading_packages_returns_immediately_when_verbosity_is_zero_string(self, capsys):
+    def test_print_loading_packages_returns_immediately_when_verbosity_is_zero(self, capsys):
         tr, rte, _ = make_truck_route_dist()
-        pl.print_loading_packages(tr, rte, "0")
+        pl.print_loading_packages(tr, rte, 0)
         out = capsys.readouterr().out
         assert out == ""
 
     def test_print_loading_packages_prints_header_and_lines_when_verbosity_is_nonzero(self, capsys):
         tr, rte, _ = make_truck_route_dist()
-        pl.print_loading_packages(tr, rte, "1")
+        pl.print_loading_packages(tr, rte, 1)
         out = capsys.readouterr().out
-        assert "verbosity: 1" in out
         for i in range(1, len(rte)+1):
             assert f"-LOADING Package {i} ONTO Truck {tr.truck_id+1}" in out
 
     def test_print_loading_packages_handles_empty_package_list(self, capsys):
         tr = truck.Truck(1)
-        pl.print_loading_packages(tr, [], "1")
+        pl.print_loading_packages(tr, [], 1)
         out = capsys.readouterr().out
-        assert "verbosity: 1" in out
         assert "-LOADING Package" not in out
 
     def test_print_loading_packages_uses_truck_id_plus_one_in_output(self, capsys):
@@ -533,21 +538,6 @@ class TestHelpers:
         pl.print_loading_packages(tr, rte, "1")
         out = capsys.readouterr().out
         assert f"ONTO Truck {tr.truck_id + 1}" in out
-
-    def test_vprint_prints_message_when_level_is_string_1(self, capsys):
-        message = "Hello World"
-
-        pl.vprint(message, "1")
-        captured = capsys.readouterr()
-
-        assert captured.out == "Hello World\n"
-
-    def test_vprint_prints_message_when_level_is_not_string_1(self, capsys):
-        levels = [1, "2", "0", "", None]
-        for level in levels:
-            pl.vprint("Hello World", level)
-            captured = capsys.readouterr()
-            assert captured.out == ""
 
 class TestLoadAssignedTrucks:
     def test_load_assigned_trucks_loads_assigned_package_onto_truck_and_updates_state(self):
@@ -571,7 +561,7 @@ class TestLoadAssignedTrucks:
         package_groups[1][0].truck = 1
 
         loader = pl.PackageLoader()
-        loader.load_assigned_trucks(test_fleet, package_groups, "0")
+        loader.load_assigned_trucks(test_fleet, package_groups, NullReporter())
 
         tr0, tr1 = test_fleet.truck_list[0], test_fleet.truck_list[1]
         ids = [pkg.package_id for group in package_groups for pkg in group]
@@ -666,7 +656,7 @@ class TestLoadEmptyTrucksWithDrivers:
             [make_pkg(4, 4, 2)]
         ]
         loader = pl.PackageLoader()
-        loader.load_empty_trucks_with_drivers(test_fleet, package_groups, "0", ["Timmy"])
+        loader.load_empty_trucks_with_drivers(test_fleet, package_groups, NullReporter(), ["Timmy"])
 
         assert len(package_groups) == 1
         assert [pkg.package_id for pkg in package_groups[0]] == [4]
@@ -718,7 +708,7 @@ class TestLoadEmptyTrucksWithDrivers:
         package_groups = [[make_pkg(1, 3, 1), make_pkg(2, 3, 1), make_pkg(3, 3, 1)]]
 
         loader = pl.PackageLoader()
-        loader.load_empty_trucks_with_drivers(test_fleet, package_groups, "0", ["Timmy"])
+        loader.load_empty_trucks_with_drivers(test_fleet, package_groups, NullReporter(), ["Timmy"])
 
         ids = [pkg.package_id for pkg in test_truck.package_list]
         assert ids == [1, 2]
@@ -738,7 +728,7 @@ class TestLoadEmptyTrucksWithDrivers:
         package_groups = [[w_package_a, w_package_b, make_pkg(3, 3, 1)]]
 
         loader = pl.PackageLoader()
-        loader.load_empty_trucks_with_drivers(test_fleet, package_groups, "0", ["Timmy"])
+        loader.load_empty_trucks_with_drivers(test_fleet, package_groups, NullReporter(), ["Timmy"])
 
         ids = [pkg.package_id for pkg in test_truck.package_list]
         assert ids == [1, 2, 3]
@@ -758,7 +748,7 @@ class TestLoadEmptyTrucksWithDrivers:
 
         loader = pl.PackageLoader()
         with pytest.raises(SystemExit):
-            loader.load_empty_trucks_with_drivers(test_fleet, package_groups, "0", ["Timmy"])
+            loader.load_empty_trucks_with_drivers(test_fleet, package_groups, NullReporter(), ["Timmy"])
         assert test_truck.package_list == []
         assert test_truck.current_capacity == 2
 
@@ -769,7 +759,7 @@ class TestLoadEmptyTrucksWithDrivers:
         package_groups = [[make_pkg(1, 3, 1)], []]
 
         loader = pl.PackageLoader()
-        loader.load_empty_trucks_with_drivers(test_fleet, package_groups, "0", ["Timmy"])
+        loader.load_empty_trucks_with_drivers(test_fleet, package_groups, NullReporter(), ["Timmy"])
 
         assert len(package_groups) == 0
 
@@ -783,7 +773,7 @@ class TestLoadEmptyTrucksWithDrivers:
             [make_pkg(4, 4, 2)]
         ]
         loader = pl.PackageLoader()
-        loader.load_empty_trucks_with_drivers(test_fleet, package_groups, "0", ["Timmy", "Jimmy"])
+        loader.load_empty_trucks_with_drivers(test_fleet, package_groups, NullReporter(), ["Timmy", "Jimmy"])
 
         assert len(package_groups) == 0
 
@@ -850,7 +840,7 @@ class TestLoadPackages:
 
         package_groups = [[make_pkg(1, 0 , 0), make_pkg(2, 0, 0)]]
 
-        world.loader.load_packages(world.fleet, package_groups, verbosity="0")
+        world.loader.load_packages(world.fleet, package_groups, NullReporter(0))
 
         assert package_groups == []
         assert len(world.truck.package_list) == 2
@@ -862,7 +852,7 @@ class TestLoadPackages:
 
         package_groups = [[make_pkg(1, 0 , 0), make_pkg(2, 0, 0)]]
 
-        world.loader.load_packages(world.fleet, package_groups, verbosity="0")
+        world.loader.load_packages(world.fleet, package_groups, NullReporter(0))
 
         assert len(package_groups) == 1
 
@@ -874,7 +864,7 @@ class TestLoadPackages:
 
         package_groups = [[make_pkg(1, 0 , 0), make_pkg(2, 0, 0)]]
 
-        world.loader.load_packages(world.fleet, package_groups, verbosity="0")
+        world.loader.load_packages(world.fleet, package_groups, NullReporter(0))
 
         assert package_groups == []
         assert tr.current_capacity == 0
@@ -886,7 +876,7 @@ class TestLoadPackages:
 
         package_groups = [[make_pkg(1, 0 , 0), make_pkg(2, 0, 0)]]
 
-        world.loader.load_packages(world.fleet, package_groups, verbosity="0")
+        world.loader.load_packages(world.fleet, package_groups, NullReporter(0))
 
         assert tr.route_distance == 0
 
@@ -897,7 +887,7 @@ class TestLoadPackages:
 
         monkeypatch.setattr(pl, "get_candidate_trucks", lambda fleet_obj, drivers=None: [],)
 
-        world.loader.load_packages(world.fleet, package_groups, verbosity="0")
+        world.loader.load_packages(world.fleet, package_groups, NullReporter(0))
 
         assert len(package_groups) == 1
 
@@ -912,7 +902,7 @@ class TestLoadPackages:
         monkeypatch.setattr(pl, "build_feasible_routes", exit_build_feasible_routes,)
 
         with pytest.raises(SystemExit):
-            world.loader.load_packages(world.fleet, package_groups, verbosity="0")
+            world.loader.load_packages(world.fleet, package_groups, NullReporter(0))
 
     def test_load_packages_loads_packages_into_optimal_truck(self, load_packages_world_factory):
         world = load_packages_world_factory(num_trucks=1)
@@ -921,7 +911,7 @@ class TestLoadPackages:
 
         package_groups = [packages]
 
-        world.loader.load_packages(world.fleet, package_groups, verbosity="0")
+        world.loader.load_packages(world.fleet, package_groups, NullReporter(0))
 
         assert tr.package_list == packages
 
@@ -945,7 +935,7 @@ class TestLoadPackages:
             [make_pkg(2, group=1, priority=3)],
         ]
 
-        world.loader.load_packages(world.fleet, package_groups, verbosity="0")
+        world.loader.load_packages(world.fleet, package_groups, NullReporter(0))
 
         assert seen["available_truck_ids"] == [0, 1, 2]
 
@@ -968,6 +958,6 @@ class TestLoadPackages:
             [make_pkg(2, group=1, priority=1)],  # deadline-like
         ]
 
-        world.loader.load_packages(world.fleet, package_groups, verbosity="0")
+        world.loader.load_packages(world.fleet, package_groups, NullReporter(0))
 
         assert seen["available_truck_ids"] == [0]
