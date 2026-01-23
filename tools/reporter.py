@@ -1,3 +1,4 @@
+from typing import Callable, Optional
 from enum import IntEnum
 
 class VerbosityLevel(IntEnum):
@@ -16,3 +17,7 @@ class Reporter:
     def report(self, verbosity_level: VerbosityLevel, message):
         if self.verbosity >= verbosity_level:
             print(message)
+
+    def run_if(self, verbosity_level: VerbosityLevel, fn: Callable[[], None]):
+        if self.verbosity >= verbosity_level:
+            fn()

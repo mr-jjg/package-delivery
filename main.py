@@ -41,36 +41,41 @@ def read_data(package_list):
     reporter.report(VerbosityLevel.PROG, "           READING DATA            ")
     reporter.report(VerbosityLevel.PROG, "-----------------------------------")
 
+
     # Read package data from packageCSV.csv file and store in the data_repository module for global access
     reporter.report(VerbosityLevel.PROG, "\nReading package data from packageCSV.csv file and storing in the 'warehouse_hash' table...")
+
     package_data = read_package_data(package_list)
     set_warehouse_hash(package_data)
     set_warehouse_base(package_data)
     warehouse_hash = get_warehouse_hash()
+
     reporter.report(VerbosityLevel.INFO, "\nPrinting warehouse_hash:")
-    if VERBOSITY == 2: warehouse_hash.print_hash_table()
+    reporter.run_if(VerbosityLevel.INFO, warehouse_hash.print_hash_table)
 
 
     # Read address data from addressCSV.csv file and store in the 'address_list'
     reporter.report(VerbosityLevel.PROG, "\nReading address data from addressCSV.csv file and storing in the 'address_list'...")
+
     address_list = read_address_data('addressCSV.csv')
     set_address_list(address_list)
+
     reporter.report(VerbosityLevel.INFO, "\nPrinting address_list:")
-    if VERBOSITY == 2:
-        for address in address_list:
-            print(address)
+    reporter.run_if(VerbosityLevel.INFO, lambda: [print(a) for a in address_list])
 
 
     # Read distance data from distanceCSV.csv and store into a 2d symmetrical 'distance_matrix'
     reporter.report(VerbosityLevel.PROG, "\nReading distance data from distanceCSV.csv and storing into a 2d symmetrical 'distance_matrix'...")
+
     distance_matrix = read_distance_data('distanceCSV.csv')
     set_distance_matrix(distance_matrix)
+
     reporter.report(VerbosityLevel.INFO, "\nPrinting distance_matrix:")
-    if VERBOSITY == 2: print_distance_matrix(distance_matrix)
+    reporter.run_if(VerbosityLevel.INFO, lambda: print_distance_matrix(distance_matrix))
 
 
     reporter.report(VerbosityLevel.INFO, "\nPress Enter to continue...")
-    if VERBOSITY == 2: input()
+    reporter.run_if(VerbosityLevel.INFO, input)
 
 
 def run(num_trucks, num_drivers):
@@ -79,25 +84,28 @@ def run(num_trucks, num_drivers):
     reporter.report(VerbosityLevel.PROG, "          PREPARING FLEET          ")
     reporter.report(VerbosityLevel.PROG, "-----------------------------------")
 
+
     # Instantiate a fleet with 3 trucks and 2 drivers
     truck_word  = "truck"  if num_trucks  == 1 else "trucks"
     driver_word = "driver" if num_drivers == 1 else "drivers"
-    reporter.report(VerbosityLevel.PROG, f"\nInstantiating a fleet with {num_trucks} {truck_word} and {num_drivers} {driver_word}...")
     drivers = [f"Driver{i+1}" for i in range(num_drivers)]
     fleet = Fleet(num_trucks)
     fleet.assign_drivers_to_trucks(drivers)
+
+    reporter.report(VerbosityLevel.PROG, f"\nInstantiating a fleet with {num_trucks} {truck_word} and {num_drivers} {driver_word}...")
     reporter.report(VerbosityLevel.INFO, "\nPrinting fleet:")
-    if VERBOSITY == 2: fleet.print_fleet()
+    reporter.run_if(VerbosityLevel.INFO, fleet.print_fleet)
 
 
     reporter.report(VerbosityLevel.PROG, "\nPress Enter to continue...")
-    if VERBOSITY >= 1: input()
+    reporter.run_if(VerbosityLevel.PROG, input)
 
 
     reporter.report(VerbosityLevel.PROG, "\n\n")
     reporter.report(VerbosityLevel.PROG, "-----------------------------------")
     reporter.report(VerbosityLevel.PROG, "   HANDLING PACKAGE CONSTRAINTS    ")
     reporter.report(VerbosityLevel.PROG, "-----------------------------------")
+
 
     # Instantiate PackageHandler object, which contains the methods that manage sorting and categorization of packages.
     reporter.report(VerbosityLevel.PROG, "\nInstantiating PackageHandler object, which contains the methods that manage sorting and categorization of packages...")
@@ -112,81 +120,102 @@ def run(num_trucks, num_drivers):
     # Search the warehouse for all packages with constraints: delivery_deadline, special_note and return as a list of packages.
     reporter.report(VerbosityLevel.PROG, "\nSearching the warehouse for all packages with constraints: delivery_deadline, special_note and return as a list of packages...")
     constraints_list = package_handler.build_constraints_list()
+
     reporter.report(VerbosityLevel.INFO, f"\n'constraints_list' of length {len(constraints_list)} - all packages with constraints: delivery_deadline, special_note (not including package with wrong address, with special_note 'X')\n")
-    if VERBOSITY == 2: print_package_list(constraints_list)
+    reporter.run_if(VerbosityLevel.INFO, lambda: print_package_list(constraints_list))
+
+
     reporter.report(VerbosityLevel.PROG, "\nPress Enter to continue...")
-    if VERBOSITY >= 1: input()
+    reporter.run_if(VerbosityLevel.PROG, input)
 
 
     # This returns a list grouping packages by priority solely for the purposes of a visual aid. The important thing to note is that the priority attribute of each package in the constraints_list is set based upon the following criteria:
-    # Priority 0:    delivery deadline and     delayed
-    # Priority 1:    delivery deadline and not delayed
-    # Priority 2: no delivery deadline and not delayed
-    # Priority 3: no delivery deadline and     delayed
     reporter.report(VerbosityLevel.PROG, "\nSetting priority attribute of each package in the constraints_list based upon the following criteria:")
     reporter.report(VerbosityLevel.PROG, "  Priority 0:    delivery deadline and     delayed")
     reporter.report(VerbosityLevel.PROG, "  Priority 1:    delivery deadline and not delayed")
     reporter.report(VerbosityLevel.PROG, "  Priority 2: no delivery deadline and not delayed")
     reporter.report(VerbosityLevel.PROG, "  Priority 3: no delivery deadline and     delayed")
+
     package_handler.set_package_priorities(constraints_list)
+
     reporter.report(VerbosityLevel.INFO, f"\nLength {len(constraints_list)} - packages prioritized by delivery_deadline and special note 'D'.\n")
-    if VERBOSITY == 2: print_package_list(constraints_list)
+    reporter.run_if(VerbosityLevel.INFO, lambda: print_package_list(constraints_list))
+
+
     reporter.report(VerbosityLevel.PROG, "\nPress Enter to continue...")
-    if VERBOSITY >= 1: input()
+    reporter.run_if(VerbosityLevel.PROG, input)
 
 
     # Handle special_note: 'Can only be on truck n' ('T' notes)
     reporter.report(VerbosityLevel.PROG, "\nHandling special_note: 'Can only be on truck n' ('T' notes)...")
     package_handler.handle_with_truck_note(constraints_list, fleet)
+
     reporter.report(VerbosityLevel.INFO, f"\nLength {len(constraints_list)} - all packages with special notes relating to packages that must be delivered with specific trucks: \n")
-    if VERBOSITY == 2: print_package_list(constraints_list)
+    reporter.run_if(VerbosityLevel.INFO, lambda: print_package_list(constraints_list))
+
+
     reporter.report(VerbosityLevel.PROG, "\nPress Enter to continue...")
-    if VERBOSITY >= 1: input()
+    reporter.run_if(VerbosityLevel.PROG, input)
 
 
     # Handle special note: 'Delayed on flight' ('D' notes). The packages with a delivery deadline are considered highest priority, and without a delivery deadline are considered lowest priority.
     reporter.report(VerbosityLevel.PROG, "\nHandling special note: 'Delayed on flight' ('D' notes) with a deadline...")
     package_handler.handle_delayed_with_deadline_note(constraints_list, fleet)
+
     reporter.report(VerbosityLevel.INFO, f"\nLength {len(constraints_list)} - all packages with special notes relating to delayed packages with a delivery deadline.\n")
-    if VERBOSITY == 2: print_package_list(constraints_list)
+    reporter.run_if(VerbosityLevel.INFO, lambda: print_package_list(constraints_list))
+
+
     reporter.report(VerbosityLevel.PROG, "\nPress Enter to continue...")
-    if VERBOSITY >= 1: input()
+    reporter.run_if(VerbosityLevel.PROG, input)
+
 
     reporter.report(VerbosityLevel.PROG, "\nHandling special note: 'Delayed on flight' ('D' notes) without a deadline...")
     package_handler.handle_delayed_without_deadline_note(constraints_list, fleet)
+
     reporter.report(VerbosityLevel.INFO, f"\nLength {len(constraints_list)} - all packages with special notes relating to delayed packages without a delivery deadline.\n")
-    if VERBOSITY == 2: print_package_list(constraints_list)
+    reporter.run_if(VerbosityLevel.INFO, lambda: print_package_list(constraints_list))
+
+
     reporter.report(VerbosityLevel.PROG, "\nPress Enter to continue...")
-    if VERBOSITY >= 1: input()
+    reporter.run_if(VerbosityLevel.PROG, input)
 
 
     # Handle special note: 'Must be delivered with x' ('W' notes). This clever algorithm uses the properties of sets to first build a list of sets before merging all sets that share common values into the smallest group of sets. The idea for handling this special note occured to me when I was boiling water; I watched while the condensation built until eventually the larger droplets bump into the smaller droplets and absorb them until their mass can no longer keep them hanging upside down and finally racing down the slope of the clear glass lid into the oblivion below. I had to work the KruskalsMinimumSpanningTree algorithm out by hand multiple times and augment it to fit my purposes, but I was thrilled enough with the results that I moved the logic for merging sets into a helper function. This algorithm also sets the package.group and the package.priority attributes of each package so they are sure to be loaded onto the same truck.
     reporter.report(VerbosityLevel.PROG, "\nHandling special note: 'Must be delivered with x' ('W' notes)...")
     constraints_list = package_handler.handle_with_package_note(constraints_list)
+
     reporter.report(VerbosityLevel.INFO, f"\n'constraints_list' len: {len(constraints_list)} - added packages grouped with packages that have the 'W' constraint, as they have the constraint by association. Set the group attribute of each package as needed.")
-    if VERBOSITY == 2: print_package_list(constraints_list)
+    reporter.run_if(VerbosityLevel.INFO, lambda: print_package_list(constraints_list))
+
+
     reporter.report(VerbosityLevel.PROG, "\nPress Enter to continue...")
-    if VERBOSITY >= 1: input()
+    reporter.run_if(VerbosityLevel.PROG, input)
 
 
     # Handles the remaining packages by building a list of all packages not in constraints_list, setting their priority to 4, and appending to form one list that contains all the packages in the warehouse.
     reporter.report(VerbosityLevel.PROG, "\nHandling the remaining packages...")
     package_handler.add_and_prioritize_remaining_packages(constraints_list)
+
     reporter.report(VerbosityLevel.INFO, f"\n'constraints_list' len: {len(constraints_list)} - all of the remaining packages in the warehouse have been prioritized and added to the constraints_list.")
-    if VERBOSITY == 2: print_package_list(constraints_list)
+    reporter.run_if(VerbosityLevel.INFO, lambda: print_package_list(constraints_list))
+
+
     reporter.report(VerbosityLevel.PROG, "\nPress Enter to continue...")
-    if VERBOSITY >= 1: input()
+    reporter.run_if(VerbosityLevel.PROG, input)
 
 
     # Finally, sort based on priority and then by group for easier iteration.
     reporter.report(VerbosityLevel.PROG, "\nSorting based on priority and then by group...")
     load_ready_list = package_handler.group_and_sort_list(constraints_list)
+
     reporter.report(VerbosityLevel.INFO, f"\n'load_ready_list' - grouped, sorted, and ready for loading onto the trucks!")
-    if VERBOSITY == 2: print_group_list(load_ready_list)
+    reporter.run_if(VerbosityLevel.INFO, lambda: print_group_list(load_ready_list))
 
 
     reporter.report(VerbosityLevel.PROG, "\nPress Enter to continue...")
-    if VERBOSITY >= 1: input()
+    reporter.run_if(VerbosityLevel.PROG, input)
+
 
     reporter.report(VerbosityLevel.PROG, "\n\n")
     reporter.report(VerbosityLevel.PROG, "-----------------------------------")
@@ -201,53 +230,55 @@ def run(num_trucks, num_drivers):
     # Iterate through the load_ready_list and load any package already assigned to a truck
     reporter.report(VerbosityLevel.PROG, "\nIterating through the 'load_ready_list' and loading any package already assigned to a truck...")
     package_loader.load_assigned_trucks(fleet, load_ready_list, reporter)
+
     reporter.report(VerbosityLevel.INFO, "\n\n'load_ready_list':")
-    if VERBOSITY == 2:
-        print_group_list(load_ready_list)
-        fleet.print_fleet()
+    reporter.run_if(VerbosityLevel.INFO, lambda: (print_group_list(load_ready_list), fleet.print_fleet()))
 
 
     # Load the highest priority packages to all empty trucks with a driver
     reporter.report(VerbosityLevel.PROG, "\nLoading the highest priority packages to any empty truck with a driver...")
     package_loader.load_empty_trucks_with_drivers(fleet, load_ready_list, reporter, drivers)
+
     reporter.report(VerbosityLevel.INFO, "\n\n'load_ready_list':")
-    if VERBOSITY == 2:
-        print_group_list(load_ready_list)
-        fleet.print_fleet()
+    reporter.run_if(VerbosityLevel.INFO, lambda: (print_group_list(load_ready_list), fleet.print_fleet()))
 
 
     # Load the trucks that currently have drivers
     reporter.report(VerbosityLevel.PROG, "\nLoading the trucks with drivers first until no packages with deadlines are unloaded...")
     package_loader.load_packages(fleet, load_ready_list, reporter, drivers)
+
     reporter.report(VerbosityLevel.INFO, "\n\n'load_ready_list':")
-    if VERBOSITY == 2:
-        print_group_list(load_ready_list)
-        fleet.print_fleet()
+    reporter.run_if(VerbosityLevel.INFO, lambda: (print_group_list(load_ready_list), fleet.print_fleet()))
 
 
     # Load the remaining packages onto remaining trucks
     reporter.report(VerbosityLevel.PROG, "\nLoading the remaining packages onto remaining trucks...")
     package_loader.load_packages(fleet, load_ready_list, reporter)
+
     reporter.report(VerbosityLevel.INFO, "\nThe fleet is loaded and ready for delivery.")
-    if VERBOSITY == 2: fleet.print_fleet()
+    reporter.run_if(VerbosityLevel.INFO, fleet.print_fleet())
 
 
     reporter.report(VerbosityLevel.PROG, "\nPress Enter to continue...")
-    if VERBOSITY >= 1: input()
+    reporter.run_if(VerbosityLevel.PROG, input)
+
 
     reporter.report(VerbosityLevel.PROG, "\n\n")
     reporter.report(VerbosityLevel.PROG, "-----------------------------------")
     reporter.report(VerbosityLevel.PROG, "      DELIVERING THE PACKAGES      ")
     reporter.report(VerbosityLevel.PROG, "-----------------------------------")
 
+
     # The deliver handler. It delivers the packages, of course.
     delivery_handler = DeliveryHandler()
+
 
     # Build the delivery list by generating departure/arrival times of trucks and deliveries of packages and adding them in order of execution
     reporter.report(VerbosityLevel.PROG, "\nBuilding the delivery list by generating a timeline of delivery events and adding them in order of execution...")
     delivery_handler.build_delivery_list(fleet)
     reporter.report(VerbosityLevel.INFO, "\nThe delivery list:\n")
-    if VERBOSITY == 2: delivery_handler.print_delivery_list()
+    reporter.run_if(VerbosityLevel.INFO, lambda: delivery_handler.print_delivery_list())
+
 
     # Deliver the packages.
     print("\nDelivering the packages in accelerated real-time...\n")

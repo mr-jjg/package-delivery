@@ -47,3 +47,35 @@ class TestReporterReport:
         out = capsys.readouterr().out
 
         assert out == "None\n"
+
+class TestReporterRunIf:
+    def test_run_if_calls_fn_when_verbosity_meets_threshold(self):
+        reporter = Reporter(verbosity=2)
+        called = {"n": 0}
+
+        def fn():
+            called["n"] += 1
+
+        reporter.run_if(VerbosityLevel.INFO, fn)
+
+        assert called["n"] == 1
+
+    def test_run_if_does_not_call_fn_when_verbosity_below_level(self):
+        reporter = Reporter(verbosity=1)
+        called = {"n": 0}
+
+        def fn():
+            called["n"] += 1
+
+        reporter.run_if(VerbosityLevel.INFO, fn)
+
+        assert called["n"] == 0
+
+    def test_run_if_propagates_exceptions_from_fn(self):
+        reporter = Reporter(verbosity=2)
+
+        def fn():
+            raise RuntimeError("kaboom")
+
+        with pytest.raises(RuntimeError, match="kaboom"):
+            reporter.run_if(VerbosityLevel.INFO, fn)
