@@ -15,31 +15,23 @@ class PackageHandler:
         package_list = list_builder()
         
         for i_package in package_list[:]:
-            for j_package in package_list[:]:
+            tag = i_package.special_note[0] if i_package.special_note else None
+
+            # Skip delayed packages
+            if tag in {"D"}:
+                continue
+
+            for j_package in package_list:
                 # Skip if comparing the same package
                 if i_package.package_id == j_package.package_id:
                     continue
                 # Skip if addresses don't match
                 if i_package.address != j_package.address:
                     continue
-                
-                def available_time(pkg):
-                    if pkg.special_note and pkg.special_note[0] == "D":
-                        return max(pkg.special_note[1], time(8, 0))
-                    return time(8, 0)
-                latest_delay = max(available_time(i_package), available_time(j_package))
+
                 earliest_deadline = min(i_package.delivery_deadline, j_package.delivery_deadline)
-                MIN_WINDOW = 30
-
-                def minutes(t: time) -> int:
-                    return t.hour * 60 + t.minute
-
-                if minutes(earliest_deadline) - minutes(latest_delay) < MIN_WINDOW:
-                    # Skip merging shared-address packages if doing so would create a nearly impossible delivery deadline
-                    continue
 
                 # i_package has a special note (not 'X') and j_package does not
-                tag = i_package.special_note[0] if i_package.special_note else None
                 if tag and tag != 'X' and j_package.special_note is None:
                     j_package.special_note = i_package.special_note
                     i_package.delivery_deadline = j_package.delivery_deadline = earliest_deadline
@@ -48,8 +40,10 @@ class PackageHandler:
                 elif i_package.special_note is None and j_package.special_note is None:
                     i_package.special_note = f'W, {j_package.package_id}'
                     i_package.parse_special_note()
+
                     j_package.special_note = f'W, {i_package.package_id}'
                     j_package.parse_special_note()
+
                     i_package.delivery_deadline = j_package.delivery_deadline = earliest_deadline
         
     
