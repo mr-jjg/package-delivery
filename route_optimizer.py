@@ -36,6 +36,11 @@ def check_route_feasibility(route, speed_mph, verbosity, start_address='4001 Sou
         
         # Skip the iteration if the addresses of subsequent packages are the same.
         if curr_pkg.address == next_pkg.address:
+            # Same address: arrival time does not change, but deadline feasibility still must be checked.
+            if arr_time > next_pkg.delivery_deadline:
+                if verbosity == "1":
+                    print(f"ERROR: Route is not feasible: {arr_time} > {next_pkg.delivery_deadline}")
+                return False
             continue
         
         arr_time = get_arrival_time(arr_time, curr_pkg.address, next_pkg.address, speed_mph)

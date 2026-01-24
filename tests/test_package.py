@@ -175,7 +175,7 @@ def test_print_package_list_captures_expected_columns(capsys):
     assert len(sep) == len(header)
 
     assert "123 Main" in row1
-    assert "11:59 PM" in row1
+    assert "EOD" in row1
     assert "X" in row1
 
     assert "456 Broad Ave" in row2

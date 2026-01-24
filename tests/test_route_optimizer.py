@@ -48,7 +48,7 @@ class TestRouteOptimizer:
 
         assert feasibility is False
 
-    def test_check_route_feasibility_skips_consecutive_same_address(self, monkeypatch):
+    def test_check_route_feasibility_skips_travel_time_for_same_address_but_still_checks_deadlines(self, monkeypatch):
         pkg0, pkg1 = make_pkg(0), make_pkg(1)
         pkg0.address = pkg1.address = "3318 W Northwest Blvd"
         pkg0.delivery_deadline = time(9, 1)
@@ -57,6 +57,25 @@ class TestRouteOptimizer:
         calls = []
         def fake_get_arrival_time(*args):
             calls.append((args))
+            return time(9, 0)
+
+        monkeypatch.setattr(ro, "get_arrival_time", fake_get_arrival_time)
+        monkeypatch.setattr(ro, "get_route_departure_time", fake_get_route_departure_time)
+
+        feasibility = ro.check_route_feasibility([pkg0, pkg1], speed_mph=18, verbosity=0)
+
+        assert len(calls) == 1
+        assert feasibility is False
+
+    def test_check_route_feasibility_same_address_all_deadlines_met(self, monkeypatch):
+        pkg0, pkg1 = make_pkg(0), make_pkg(1)
+        pkg0.address = pkg1.address = "3318 W Northwest Blvd"
+        pkg0.delivery_deadline = time(9, 30)
+        pkg1.delivery_deadline = time(10, 0)
+
+        calls = []
+        def fake_get_arrival_time(*args):
+            calls.append(args)
             return time(9, 0)
 
         monkeypatch.setattr(ro, "get_arrival_time", fake_get_arrival_time)
