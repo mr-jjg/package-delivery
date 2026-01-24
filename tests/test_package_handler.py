@@ -166,12 +166,12 @@ def test_merge_addresses_skips_copying_delayed_note_and_deadline_when_delay_afte
 def test_merge_addresses_copies_delayed_note_and_sets_earliest_deadline_when_delay_is_feasible_with_8am_floor(warehouse_reset, monkeypatch):
     table = hash_table.HashTable(size=4)
 
-    # earliest_deadline will be 8:15 AM (from pkg_j)
+    # earliest_deadline will be 9:15 AM (from pkg_j)
     pkg_i = package.Package(
         1, "123 Maple Street", "Springfield", "IL", 62701, "10:00 AM", 2.5, "D, 7:30 AM"
     )
     pkg_j = package.Package(
-        2, "123 Maple Street", "Springfield", "IL", 62701, "8:15 AM", 2.5, None
+        2, "123 Maple Street", "Springfield", "IL", 62701, "9:15 AM", 2.5, None
     )
 
     pkg_i.special_note = pkg_i.parse_special_note()
@@ -185,23 +185,23 @@ def test_merge_addresses_copies_delayed_note_and_sets_earliest_deadline_when_del
     handler = ph.PackageHandler()
     handler.merge_addresses()
 
-    # Copy delayed note to j and unify deadline to earliest (8:15)
+    # Copy delayed note to j and unify deadline to earliest (9:15)
     assert pkg_j.special_note == ["D", datetime.time(7, 30)]
-    assert pkg_i.delivery_deadline == datetime.time(8, 15)
-    assert pkg_j.delivery_deadline == datetime.time(8, 15)
+    assert pkg_i.delivery_deadline == datetime.time(9, 15)
+    assert pkg_j.delivery_deadline == datetime.time(9, 15)
 
 def test_merge_addresses_uses_8am_floor_for_delayed_availability_when_deciding_feasibility(warehouse_reset, monkeypatch):
     table = hash_table.HashTable(size=4)
 
     # i_package is delayed, but delay time is before 8:00 AM (floor applies)
     pkg_i = package.Package(
-        1, "123 Maple Street", "Springfield", "IL", 62701, "10:00 AM", 2.5, "D, 7:30 AM"
+        1, "123 Maple Street", "Springfield", "IL", 62701, "11:00 AM", 2.5, "D, 7:30 AM"
     )
 
     # j_package has earlier deadline and no note, so it is eligible to receive i's note
-    # earliest_deadline will be 8:15 AM, and effective availability is 8:00 AM (floor), so merge is feasible
+    # earliest_deadline will be 10:15 AM, and effective availability is 8:00 AM (floor), so merge is feasible
     pkg_j = package.Package(
-        2, "123 Maple Street", "Springfield", "IL", 62701, "8:15 AM", 2.5, None
+        2, "123 Maple Street", "Springfield", "IL", 62701, "10:15 AM", 2.5, None
     )
 
     pkg_i.special_note = pkg_i.parse_special_note()
@@ -215,10 +215,132 @@ def test_merge_addresses_uses_8am_floor_for_delayed_availability_when_deciding_f
     handler = ph.PackageHandler()
     handler.merge_addresses()
 
-    # Merge should be allowed because effective availability is 8:00 AM <= 8:15 AM
+    # Merge should be allowed because effective availability is 8:00 AM <= 10:15 AM
     assert pkg_j.special_note == ["D", datetime.time(7, 30)]
-    assert pkg_i.delivery_deadline == datetime.time(8, 15)
-    assert pkg_j.delivery_deadline == datetime.time(8, 15)
+    assert pkg_i.delivery_deadline == datetime.time(10, 15)
+    assert pkg_j.delivery_deadline == datetime.time(10, 15)
+
+def test_merge_addresses_skips_copy_when_window_below_min_window(warehouse_reset, monkeypatch):
+    table = hash_table.HashTable(size=4)
+
+    # i_package delayed until 8:10; j_package earliest deadline 8:35
+    # window = 25 minutes (< MIN_WINDOW=30) => merge should be skipped
+    pkg_i = package.Package(
+        1, "123 Maple Street", "Springfield", "IL", 62701, "10:00 AM", 2.5, "D, 8:10 AM"
+    )
+    pkg_j = package.Package(
+        2, "123 Maple Street", "Springfield", "IL", 62701, "8:35 AM", 2.5, None
+    )
+
+    pkg_i.special_note = pkg_i.parse_special_note()
+    pkg_j.special_note = pkg_j.parse_special_note()
+
+    table.insert(pkg_i.package_id, pkg_i)
+    table.insert(pkg_j.package_id, pkg_j)
+
+    monkeypatch.setattr(ph, "get_warehouse_hash", lambda: table)
+
+    handler = ph.PackageHandler()
+    handler.merge_addresses()
+
+    # No copy should occur because window < MIN_WINDOW
+    assert pkg_j.special_note is None
+    assert pkg_j.delivery_deadline == datetime.time(8, 35)
+
+    # i remains unchanged
+    assert pkg_i.special_note == ["D", datetime.time(8, 10)]
+    assert pkg_i.delivery_deadline == datetime.time(10, 0)
+
+def test_merge_addresses_allows_copy_when_window_equals_min_window(warehouse_reset, monkeypatch):
+    table = hash_table.HashTable(size=4)
+
+    # i_package delayed until 8:10; j_package earliest deadline 8:40
+    # window = 30 minutes (== MIN_WINDOW) => merge should be allowed
+    pkg_i = package.Package(
+        1, "123 Maple Street", "Springfield", "IL", 62701, "10:00 AM", 2.5, "D, 8:10 AM"
+    )
+    pkg_j = package.Package(
+        2, "123 Maple Street", "Springfield", "IL", 62701, "8:40 AM", 2.5, None
+    )
+
+    pkg_i.special_note = pkg_i.parse_special_note()
+    pkg_j.special_note = pkg_j.parse_special_note()
+
+    table.insert(pkg_i.package_id, pkg_i)
+    table.insert(pkg_j.package_id, pkg_j)
+
+    monkeypatch.setattr(ph, "get_warehouse_hash", lambda: table)
+
+    handler = ph.PackageHandler()
+    handler.merge_addresses()
+
+    # Copy delayed note to j and unify deadline to earliest (8:40)
+    assert pkg_j.special_note == ["D", datetime.time(8, 10)]
+    assert pkg_i.delivery_deadline == datetime.time(8, 40)
+    assert pkg_j.delivery_deadline == datetime.time(8, 40)
+
+def test_merge_addresses_skips_w_link_when_window_below_min_window(warehouse_reset, monkeypatch):
+    table = hash_table.HashTable(size=4)
+
+    # Both have no notes; would normally create W links.
+    # But i has a delay making availability 8:10 and earliest deadline is 8:35 => window 25 (<30)
+    # Expect: no W links created and deadlines unchanged.
+    pkg_i = package.Package(
+        1, "123 Maple Street", "Springfield", "IL", 62701, "8:35 AM", 2.5, "D, 8:10 AM"
+    )
+    pkg_j = package.Package(
+        2, "123 Maple Street", "Springfield", "IL", 62701, "11:00 AM", 2.5, None
+    )
+
+    pkg_i.special_note = pkg_i.parse_special_note()
+    pkg_j.special_note = pkg_j.parse_special_note()
+
+    table.insert(pkg_i.package_id, pkg_i)
+    table.insert(pkg_j.package_id, pkg_j)
+
+    monkeypatch.setattr(ph, "get_warehouse_hash", lambda: table)
+
+    handler = ph.PackageHandler()
+    handler.merge_addresses()
+
+    # Because window < MIN_WINDOW, shared-address merge should be skipped entirely
+    assert pkg_i.special_note == ["D", datetime.time(8, 10)]
+    assert pkg_j.special_note is None
+    assert pkg_i.delivery_deadline == datetime.time(8, 35)
+    assert pkg_j.delivery_deadline == datetime.time(11, 0)
+
+def test_merge_addresses_creates_w_link_when_window_equals_min_window(warehouse_reset, monkeypatch):
+    table = hash_table.HashTable(size=4)
+
+    # Both have no notes; should create W links when window is sufficient.
+    # i delayed until 8:10; earliest deadline is 8:40 => window 30 (== MIN_WINDOW)
+    pkg_i = package.Package(
+        1, "123 Maple Street", "Springfield", "IL", 62701, "8:40 AM", 2.5, "D, 8:10 AM"
+    )
+    pkg_j = package.Package(
+        2, "123 Maple Street", "Springfield", "IL", 62701, "11:00 AM", 2.5, None
+    )
+
+    pkg_i.special_note = pkg_i.parse_special_note()
+    pkg_j.special_note = pkg_j.parse_special_note()
+
+    # Make both notes None so we actually test the W-creation branch
+    # (pkg_i started delayed; clear it explicitly so the branch is "both none")
+    pkg_i.special_note = None
+
+    table.insert(pkg_i.package_id, pkg_i)
+    table.insert(pkg_j.package_id, pkg_j)
+
+    monkeypatch.setattr(ph, "get_warehouse_hash", lambda: table)
+
+    handler = ph.PackageHandler()
+    handler.merge_addresses()
+
+    # With window >= MIN_WINDOW, W links should be created and deadlines unified to earliest (8:40)
+    assert pkg_i.special_note == ["W", 2]
+    assert pkg_j.special_note == ["W", 1]
+    assert pkg_i.delivery_deadline == datetime.time(8, 40)
+    assert pkg_j.delivery_deadline == datetime.time(8, 40)
 
 def test_merge_addresses_is_idempotent_on_second_call(patch_get_warehouse_hash):
     handler = ph.PackageHandler()

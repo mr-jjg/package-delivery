@@ -23,14 +23,19 @@ class PackageHandler:
                 if i_package.address != j_package.address:
                     continue
                 
-                earliest_deadline = min(i_package.delivery_deadline, j_package.delivery_deadline)
-                
                 def available_time(pkg):
                     if pkg.special_note and pkg.special_note[0] == "D":
                         return max(pkg.special_note[1], time(8, 0))
                     return time(8, 0)
-                if max(available_time(i_package), available_time(j_package)) > earliest_deadline:
-                    # Skip merging shared-address packages if doing so would create an impossible delivery deadline
+                latest_delay = max(available_time(i_package), available_time(j_package))
+                earliest_deadline = min(i_package.delivery_deadline, j_package.delivery_deadline)
+                MIN_WINDOW = 30
+
+                def minutes(t: time) -> int:
+                    return t.hour * 60 + t.minute
+
+                if minutes(earliest_deadline) - minutes(latest_delay) < MIN_WINDOW:
+                    # Skip merging shared-address packages if doing so would create a nearly impossible delivery deadline
                     continue
 
                 # i_package has a special note (not 'X') and j_package does not
