@@ -35,17 +35,14 @@ class PackageLoader:
         warehouse_hash = get_warehouse_hash()
         
         # Highest priority packages need to go onto empty trucks that have drivers (Ready to roll).
-        empty_trucks_with_drivers_list = []
-        for truck in fleet.truck_list:
-            if truck.driver in drivers and truck.current_capacity == truck.maximum_capacity:
-                empty_trucks_with_drivers_list.append(truck.truck_id)
+        empty_trucks_with_drivers_list = get_candidate_trucks(fleet, drivers, require_empty=True)
         
         while empty_trucks_with_drivers_list:
             # Find the highest priority set of packages in the package_groups list and move to the working_package_list.
             working_package_list = build_working_package_list(package_groups)
             
             # Find the first empty truck in the fleet and pop from the list so that the while loop will terminate.
-            empty_truck = fleet.truck_list[empty_trucks_with_drivers_list.pop(0)]
+            empty_truck = empty_trucks_with_drivers_list.pop(0)
             
             # Check for special note 'W', as these cannot be split
             w_note = has_w_note(working_package_list)
@@ -258,17 +255,25 @@ def choose_best_option(feasible_routes_list):
     return best_option
 
 
-def get_candidate_trucks(fleet, drivers=None):
+def get_candidate_trucks(fleet, drivers=None, require_empty=False):
     candidates = []
 
-    if drivers:
-        for truck in fleet.truck_list:
-            if truck.driver in drivers and truck.current_capacity > 0:
-                candidates.append(truck)
-    else:
-        for truck in fleet.truck_list:
-            if truck.driver is None and truck.current_capacity > 0:
-                candidates.append(truck)
+    for truck in fleet.truck_list:
+        if drivers:
+            if truck.driver not in drivers:
+                continue
+        else:
+            if truck.driver is not None:
+                continue
+
+        if require_empty:
+            if truck.current_capacity != truck.maximum_capacity:
+                continue
+        else:
+            if truck.current_capacity <= 0:
+                continue
+
+        candidates.append(truck)
 
     return candidates
 

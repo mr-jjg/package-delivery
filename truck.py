@@ -1,8 +1,10 @@
 class Truck:
+    MAX = 16
+
     def __init__(self, 
                  truck_id=None, 
-                 current_capacity=16, 
-                 maximum_capacity=16, 
+                 current_capacity=MAX, 
+                 maximum_capacity=MAX, 
                  speed_mph=18, 
                  gas=float('inf'), 
                  driver=None, 

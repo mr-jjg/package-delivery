@@ -402,6 +402,78 @@ class TestHelpers:
 
         assert candidates == []
 
+    def test_get_candidate_trucks_require_empty_true_returns_only_empty_trucks_for_specified_drivers(self):
+        drivers = ["Ren", "Stimpy"]
+        test_fleet = fleet.Fleet(2)
+
+        # Both assigned
+        test_fleet.truck_list[0].driver = "Ren"
+        test_fleet.truck_list[1].driver = "Stimpy"
+
+        # Make Ren's truck partially loaded (not empty)
+        t0 = test_fleet.truck_list[0]
+        t0.maximum_capacity = 16
+        t0.current_capacity = 15
+
+        # Stimpy's truck empty
+        t1 = test_fleet.truck_list[1]
+        t1.maximum_capacity = 16
+        t1.current_capacity = 16
+
+        candidates = pl.get_candidate_trucks(test_fleet, drivers, require_empty=True)
+
+        assert candidates == [t1]
+
+    def test_get_candidate_trucks_require_empty_true_uses_per_truck_max_capacity_not_constant(self):
+        drivers = ["Ren"]
+        test_fleet = fleet.Fleet(1)
+
+        t = test_fleet.truck_list[0]
+        t.driver = "Ren"
+        t.maximum_capacity = 2
+        t.current_capacity = 2  # empty relative to its own max
+
+        candidates = pl.get_candidate_trucks(test_fleet, drivers, require_empty=True)
+
+        assert candidates == [t]
+
+    def test_get_candidate_trucks_require_empty_true_without_drivers_returns_only_unassigned_empty_trucks(self):
+        test_fleet = fleet.Fleet(3)
+
+        # Truck 0: unassigned, empty
+        t0 = test_fleet.truck_list[0]
+        t0.driver = None
+        t0.maximum_capacity = 16
+        t0.current_capacity = 16
+
+        # Truck 1: unassigned, partially loaded (not empty)
+        t1 = test_fleet.truck_list[1]
+        t1.driver = None
+        t1.maximum_capacity = 16
+        t1.current_capacity = 10
+
+        # Truck 2: assigned, empty (should be excluded when no drivers list is provided)
+        t2 = test_fleet.truck_list[2]
+        t2.driver = "Stimpy"
+        t2.maximum_capacity = 16
+        t2.current_capacity = 16
+
+        candidates = pl.get_candidate_trucks(test_fleet, require_empty=True)
+
+        assert candidates == [t0]
+
+    def test_get_candidate_trucks_require_empty_true_returns_empty_list_when_no_empty_trucks_match(self):
+        drivers = ["Ren", "Stimpy"]
+        test_fleet = fleet.Fleet(2)
+        for i, t in enumerate(test_fleet.truck_list):
+            t.driver = drivers[i]
+            t.maximum_capacity = 16
+            t.current_capacity = 15  # none empty
+
+        candidates = pl.get_candidate_trucks(test_fleet, drivers, require_empty=True)
+
+        assert candidates == []
+
     def test_has_w_note_returns_true_when_first_package_has_w(self):
         package_list = [
             make_pkg(1),
