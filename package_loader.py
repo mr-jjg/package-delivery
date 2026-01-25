@@ -111,6 +111,11 @@ class PackageLoader:
             
             # Step 1: First build a list of feasible routes
             feasible_routes_list = build_feasible_routes(available_trucks, working_package_list, verbosity, count)
+            
+            # If there are no feasible routes, exit.
+            if not feasible_routes_list:
+                if verbosity == 2: print(f"\nThere are no feasible routes. Exiting at 'load_packages' at iteration {count}.")
+                raise SystemExit(1)
                 
             # Step 2: Determine which feasible route minimizes the total distance when replacing a truck's current route.
             best_option = choose_best_option(feasible_routes_list)
@@ -206,7 +211,7 @@ def get_trucks_with_available_capacity(truck_list, list_length):
     return trucks_with_available_capacity
     
 
-def build_feasible_routes(available_trucks, working_package_list, verbosity, count):
+def build_feasible_routes(available_trucks, working_package_list, verbosity):
     feasible_routes_list = []
     for truck in available_trucks:
         if verbosity == 2: print(f"\nTesting Truck {truck.truck_id + 1} for feasibility")
@@ -223,10 +228,6 @@ def build_feasible_routes(available_trucks, working_package_list, verbosity, cou
         if route_feasibility:
             #print("Route is feasible. Appending to feasible_routes_list...")
             feasible_routes_list.append((truck, test_route, test_route_distance))
-
-    if not feasible_routes_list:
-        if verbosity == 2: print(f"\nThere are no feasible routes. Exiting at 'load_packages' at iteration {count}.")
-        raise SystemExit(1)
 
     return feasible_routes_list
 

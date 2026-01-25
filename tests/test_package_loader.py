@@ -232,7 +232,7 @@ class TestHelpers:
         fake_nearest_neighbor(monkeypatch, distance=10.0, route=["r1", "r2"])
         monkeypatch.setattr(pl, "check_route_feasibility", lambda route, speed, v: True)
 
-        result = pl.build_feasible_routes([t1], working_package_list, verbosity="0", count=1)
+        result = pl.build_feasible_routes([t1], working_package_list, verbosity="0")
 
         assert len(result) == 1
         test_truck, test_route, test_distance = result[0]
@@ -250,7 +250,7 @@ class TestHelpers:
         fake_nearest_neighbor(monkeypatch, distance=10.0, route=["_"])
         monkeypatch.setattr(pl, "check_route_feasibility", lambda route, speed, v: True)
 
-        result = pl.build_feasible_routes([t1, t2], working_package_list, verbosity="0", count=1)
+        result = pl.build_feasible_routes([t1, t2], working_package_list, verbosity="0")
         assert len(result) == 2
         trucks_in_result = {t.truck_id for t, _, _ in result}
         assert trucks_in_result == {0, 1}
@@ -269,20 +269,10 @@ class TestHelpers:
             return calls["count"] == 1
         monkeypatch.setattr(pl, "check_route_feasibility", fake_check_route_feasibility)
 
-        result = pl.build_feasible_routes([t1, t2], working_package_list, verbosity="0", count=1)
+        result = pl.build_feasible_routes([t1, t2], working_package_list, verbosity="0")
 
         assert len(result) == 1
         assert result[0][0] is t1
-
-    def test_build_feasible_routes_raises_when_no_feasible_routes(self, monkeypatch):
-        t1 = truck.Truck(0)
-        working_package_list = [make_pkg(1)]
-
-        fake_nearest_neighbor(monkeypatch, distance=10.0, route=["r1"])
-        monkeypatch.setattr(pl, "check_route_feasibility", lambda route, speed, v: False)
-
-        with pytest.raises(SystemExit):
-            result = pl.build_feasible_routes([t1], working_package_list, verbosity="0", count=1)
 
     def test_choose_best_option_returns_the_only_route_when_exactly_one_feasible_route_exists(self):
         t1, wpl, dist = truck.Truck(0), [make_pkg(1), make_pkg(2)], 10.0
@@ -968,10 +958,7 @@ class TestLoadPackages:
 
         package_groups = [[make_pkg(1, 0 , 0), make_pkg(2, 0, 0)]]
 
-        def exit_build_feasible_routes(*args, **kwargs):
-            raise SystemExit(1)
-
-        monkeypatch.setattr(pl, "build_feasible_routes", exit_build_feasible_routes,)
+        monkeypatch.setattr(pl, "build_feasible_routes", lambda *args, **kwargs: [])
 
         with pytest.raises(SystemExit):
             world.loader.load_packages(world.fleet, package_groups, NullReporter(0))
