@@ -708,144 +708,138 @@ class TestLoadAssignedTrucks:
         assert len(package_groups) == 1
         assert ids == [1, 2, 3, 4]
 
-class TestLoadEmptyTrucksWithDrivers:
-    def test_loads_highest_priority_packages_onto_empty_truck_with_driver(self):
-        test_fleet = fleet.Fleet(2)
-        test_truck = test_fleet.truck_list[0]
-        test_truck.driver = "Timmy"
+class TestLoadPriorityZeroPackagesWithDrivers:
+    def test_returns_immediately_when_package_groups_empty(self):
+        test_fleet = fleet.Fleet(1)
+        test_fleet.truck_list[0].driver = "Timmy"
+
+        package_groups = []
+
+        loader = pl.PackageLoader()
+        loader.load_priority_zero_packages_with_drivers(test_fleet, package_groups, NullReporter(0), ["Timmy"])
+
+        assert package_groups == []
+        assert test_fleet.truck_list[0].package_list == []
+        assert test_fleet.truck_list[0].current_capacity == test_fleet.truck_list[0].maximum_capacity
+
+    def test_returns_immediately_when_first_non_empty_group_not_priority_zero(self, monkeypatch):
+        test_fleet = fleet.Fleet(1)
+        test_fleet.truck_list[0].driver = "Timmy"
+
+        # First non-empty group has priority != 0
         package_groups = [
-            [make_pkg(1, 3, 1), make_pkg(2, 3, 1), make_pkg(3, 3, 1)],
-            [make_pkg(4, 4, 2)]
+            [],
+            [make_pkg(1, group=0, priority=2)],
+            [make_pkg(2, group=1, priority=0)],
         ]
-        loader = pl.PackageLoader()
-        loader.load_empty_trucks_with_drivers(test_fleet, package_groups, NullReporter(), ["Timmy"])
 
-        assert len(package_groups) == 1
-        assert [pkg.package_id for pkg in package_groups[0]] == [4]
+        calls = {"build_working_package_list": 0, "build_feasible_routes": 0, "load_optimal_truck": 0}
 
-        ids = [pkg.package_id for pkg in test_truck.package_list]
-        assert ids == [1, 2, 3]
-        assert test_truck.current_capacity == test_truck.maximum_capacity - 3  
-        assert all(pkg.truck == test_truck.truck_id for pkg in test_truck.package_list)
+        def spy_build_working_package_list(groups):
+            calls["build_working_package_list"] += 1
+            return pl.build_working_package_list(groups)
 
-    def test_does_not_load_when_no_empty_trucks_have_drivers(self):
-        test_fleet = fleet.Fleet(2)
-        package_groups = [[make_pkg(1, 3, 1)]]
+        def spy_build_feasible_routes(*args, **kwargs):
+            calls["build_feasible_routes"] += 1
+            return []
 
-        loader = pl.PackageLoader()
-        loader.load_empty_trucks_with_drivers(test_fleet, package_groups, "0", ["Timmy"])
+        def spy_load_optimal_truck(*args, **kwargs):
+            calls["load_optimal_truck"] += 1
 
-        assert len(package_groups) == 1
-        assert package_groups[0][0].truck is None
-        for truck in test_fleet.truck_list:
-            assert not truck.package_list
-
-    def test_ignores_trucks_that_are_not_empty(self):
-        test_fleet = fleet.Fleet(2)
-        truck_a, truck_b = test_fleet.truck_list[0], test_fleet.truck_list[1]
-        truck_a.driver = "Timmy"
-        truck_a.package_list = [make_pkg(2, 4, 2)]
-        truck_a.current_capacity -= 1
-        truck_b.driver = "Jimmy"
-        truck_b.package_list = [make_pkg(3, 4, 2)]
-        truck_b.current_capacity -= 1
-
-        package_groups = [[make_pkg(1, 3, 1)]]
+        monkeypatch.setattr(pl, "build_working_package_list", spy_build_working_package_list)
+        monkeypatch.setattr(pl, "build_feasible_routes", spy_build_feasible_routes)
+        monkeypatch.setattr(pl, "load_optimal_truck", spy_load_optimal_truck)
 
         loader = pl.PackageLoader()
-        loader.load_empty_trucks_with_drivers(test_fleet, package_groups, "0", ["Timmy", "Jimmy"])
+        loader.load_priority_zero_packages_with_drivers(test_fleet, package_groups, NullReporter(0), ["Timmy"])
 
-        assert len(package_groups) == 1
-        assert package_groups[0][0].package_id == 1
-        assert len(truck_a.package_list) == 1
-        assert truck_a.package_list[0].package_id == 2
-        assert len(truck_b.package_list) == 1
-        assert truck_b.package_list[0].package_id == 3
+        # No processing should occur
+        assert calls["build_working_package_list"] == 0
+        assert calls["build_feasible_routes"] == 0
+        assert calls["load_optimal_truck"] == 0
 
-    def test_splits_and_returns_leftover_packages_to_front_of_package_groups_when_capacity_exceeded(self, fake_split):
+        # Nothing loaded
+        assert test_fleet.truck_list[0].package_list == []
+
+    def test_loads_priority_zero_packages_one_at_a_time_until_none_left(self, monkeypatch):
         test_fleet = fleet.Fleet(1)
-        test_truck = test_fleet.truck_list[0]
-        test_truck.driver = "Timmy"
-        test_truck.current_capacity = test_truck.maximum_capacity = 2
-        package_groups = [[make_pkg(1, 3, 1), make_pkg(2, 3, 1), make_pkg(3, 3, 1)]]
+        tr = test_fleet.truck_list[0]
+        tr.driver = "Timmy"
+        tr.maximum_capacity = 10
+        tr.current_capacity = 10
+
+        pkg_a = make_pkg(1, group=0, priority=0)
+        pkg_b = make_pkg(2, group=0, priority=0)
+        package_groups = [[pkg_a, pkg_b]]
+
+        # Make build_working_package_list return a list that includes both, but method should process one at a time.
+        def fake_build_working_package_list(groups):
+            return groups.pop(0)
+        monkeypatch.setattr(pl, "build_working_package_list", fake_build_working_package_list)
+
+        calls = {"feasible_inputs": [], "loaded_pkg_ids": []}
+
+        def fake_build_feasible_routes(available_trucks, working_package_list, verbosity):
+            # Should always be a single-package list
+            assert len(working_package_list) == 1
+            calls["feasible_inputs"].append(working_package_list[0].package_id)
+
+            # Return a feasible option using current truck state + that package
+            return [(available_trucks[0], available_trucks[0].package_list + working_package_list, 10.0)]
+
+        def fake_choose_best_option(routes):
+            return routes[0]
+
+        original_load_optimal_truck = pl.load_optimal_truck
+        def spy_load_optimal_truck(option):
+            t, route, dist = option
+            # Record what was just loaded at tail
+            if route:
+                calls["loaded_pkg_ids"].append(route[-1].package_id)
+            original_load_optimal_truck(option)
+
+        monkeypatch.setattr(pl, "get_candidate_trucks", lambda fleet_obj, drivers=None, require_empty=False: [tr])
+        monkeypatch.setattr(pl, "build_feasible_routes", fake_build_feasible_routes)
+        monkeypatch.setattr(pl, "choose_best_option", fake_choose_best_option)
+        monkeypatch.setattr(pl, "load_optimal_truck", spy_load_optimal_truck)
 
         loader = pl.PackageLoader()
-        loader.load_empty_trucks_with_drivers(test_fleet, package_groups, NullReporter(), ["Timmy"])
+        loader.load_priority_zero_packages_with_drivers(test_fleet, package_groups, NullReporter(0), ["Timmy"])
 
-        ids = [pkg.package_id for pkg in test_truck.package_list]
-        assert ids == [1, 2]
-        assert test_truck.current_capacity == 0
-        assert len(package_groups) == 1
-        assert [pkg.package_id for pkg in package_groups[0]] == [3]
+        # Feasibility evaluated per package
+        assert calls["feasible_inputs"] == [1, 2]
+        # Loaded in same order
+        assert calls["loaded_pkg_ids"] == [1, 2]
 
-    def test_does_not_split_package_list_when_w_note_present_and_it_fits(self):
+        # Truck got both
+        assert [p.package_id for p in tr.package_list] == [1, 2]
+        assert tr.current_capacity == tr.maximum_capacity - 2
+        assert pkg_a.truck == tr.truck_id
+        assert pkg_b.truck == tr.truck_id
+
+    def test_raises_systemexit_when_no_feasible_routes_for_priority_package(self, monkeypatch):
         test_fleet = fleet.Fleet(1)
-        test_truck = test_fleet.truck_list[0]
-        test_truck.driver = "Timmy"
-        test_truck.current_capacity = test_truck.maximum_capacity = 3
-        w_package_a = make_pkg(1, 3, 1)
-        w_package_a.special_note = ['W', 2]
-        w_package_b = make_pkg(2, 3, 1)
-        w_package_b.special_note = ['W', 1]
-        package_groups = [[w_package_a, w_package_b, make_pkg(3, 3, 1)]]
+        tr = test_fleet.truck_list[0]
+        tr.driver = "Timmy"
+        tr.maximum_capacity = 10
+        tr.current_capacity = 10
 
-        loader = pl.PackageLoader()
-        loader.load_empty_trucks_with_drivers(test_fleet, package_groups, NullReporter(), ["Timmy"])
+        pkg_a = make_pkg(1, group=0, priority=0)
+        package_groups = [[pkg_a]]
 
-        ids = [pkg.package_id for pkg in test_truck.package_list]
-        assert ids == [1, 2, 3]
-        assert test_truck.current_capacity == 0
-        assert len(package_groups) == 0
+        monkeypatch.setattr(pl, "get_candidate_trucks", lambda fleet_obj, drivers=None, require_empty=False: [tr])
+        monkeypatch.setattr(pl, "build_working_package_list", lambda groups: groups[0])
 
-    def test_raises_when_w_note_present_and_it_doesnt_fit(self):
-        test_fleet = fleet.Fleet(1)
-        test_truck = test_fleet.truck_list[0]
-        test_truck.driver = "Timmy"
-        test_truck.current_capacity = test_truck.maximum_capacity = 2
-        w_package_a = make_pkg(1, 3, 1)
-        w_package_a.special_note = ['W', 2]
-        w_package_b = make_pkg(2, 3, 1)
-        w_package_b.special_note = ['W', 1]
-        package_groups = [[w_package_a, w_package_b, make_pkg(3, 3, 1)]]
+        monkeypatch.setattr(pl, "build_feasible_routes", lambda *args, **kwargs: [])
 
         loader = pl.PackageLoader()
         with pytest.raises(SystemExit):
-            loader.load_empty_trucks_with_drivers(test_fleet, package_groups, NullReporter(), ["Timmy"])
-        assert test_truck.package_list == []
-        assert test_truck.current_capacity == 2
+            loader.load_priority_zero_packages_with_drivers(test_fleet, package_groups, NullReporter(0), ["Timmy"])
 
-    def test_removes_empty_groups_after_loading(self):
-        test_fleet = fleet.Fleet(1)
-        test_truck = test_fleet.truck_list[0]
-        test_truck.driver = "Timmy"
-        package_groups = [[make_pkg(1, 3, 1)], []]
-
-        loader = pl.PackageLoader()
-        loader.load_empty_trucks_with_drivers(test_fleet, package_groups, NullReporter(), ["Timmy"])
-
-        assert len(package_groups) == 0
-
-    def test_processes_multiple_empty_trucks_in_order(self):
-        test_fleet = fleet.Fleet(2)
-        truck_a, truck_b = test_fleet.truck_list[0], test_fleet.truck_list[1]
-        truck_a.driver = "Timmy"
-        truck_b.driver = "Jimmy"
-        package_groups = [
-            [make_pkg(1, 3, 1), make_pkg(2, 3, 1), make_pkg(3, 3, 1)],
-            [make_pkg(4, 4, 2)]
-        ]
-        loader = pl.PackageLoader()
-        loader.load_empty_trucks_with_drivers(test_fleet, package_groups, NullReporter(), ["Timmy", "Jimmy"])
-
-        assert len(package_groups) == 0
-
-        assert [pkg.package_id for pkg in truck_a.package_list] == [1, 2, 3]
-        assert truck_a.current_capacity == truck_a.maximum_capacity - 3
-        assert all(pkg.truck is not None for pkg in truck_a.package_list)
-
-        assert truck_b.package_list[0].package_id == 4
-        assert truck_b.current_capacity == truck_b.maximum_capacity - 1
-        assert truck_b.package_list[0].truck == 1
+        # Ensure no partial load occurred
+        assert tr.package_list == []
+        assert tr.current_capacity == tr.maximum_capacity
+        assert pkg_a.truck is None
 
 @pytest.fixture
 def load_packages_world_factory(monkeypatch):
@@ -868,7 +862,7 @@ def load_packages_world_factory(monkeypatch):
         monkeypatch.setattr(pl, "build_working_package_list", fake_build_working_package_list,)
         monkeypatch.setattr(pl, "nearest_neighbor", lambda pkg_list: (0.0, pkg_list),)
 
-        def fake_build_feasible_routes(available_trucks, working_package_list, verbosity, count):
+        def fake_build_feasible_routes(available_trucks, working_package_list, verbosity):
             t = available_trucks[0]
             return [(t, working_package_list, 10.0)]
 
@@ -982,7 +976,7 @@ class TestLoadPackages:
 
         seen = {"available_truck_ids": None}
 
-        def spy_build_feasible_routes(available_trucks, working_package_list, verbosity, count):
+        def spy_build_feasible_routes(available_trucks, working_package_list, verbosity):
             seen["available_truck_ids"] = [t.truck_id for t in available_trucks]
             return [(available_trucks[0], working_package_list, 10.0)]
 
@@ -1005,7 +999,7 @@ class TestLoadPackages:
 
         seen = {"available_truck_ids": None}
 
-        def spy_build_feasible_routes(available_trucks, working_package_list, verbosity, count):
+        def spy_build_feasible_routes(available_trucks, working_package_list, verbosity):
             seen["available_truck_ids"] = [t.truck_id for t in available_trucks]
             return [(available_trucks[0], working_package_list, 10.0)]
 

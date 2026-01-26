@@ -235,9 +235,9 @@ def run(num_trucks, num_drivers):
     reporter.run_if(VerbosityLevel.INFO, lambda: (print_group_list(load_ready_list), fleet.print_fleet()))
 
 
-    # Load the highest priority packages to all empty trucks with a driver
-    reporter.report(VerbosityLevel.PROG, "\nLoading the highest priority packages to any empty truck with a driver...")
-    package_loader.load_empty_trucks_with_drivers(fleet, load_ready_list, reporter, drivers)
+    # Load the highest priority packages to all trucks with a driver
+    reporter.report(VerbosityLevel.PROG, "\nLoading the highest priority packages to any truck with a driver...")
+    package_loader.load_priority_zero_packages_with_drivers(fleet, load_ready_list, reporter, drivers)
 
     reporter.report(VerbosityLevel.INFO, "\n\n'load_ready_list':")
     reporter.run_if(VerbosityLevel.INFO, lambda: (print_group_list(load_ready_list), fleet.print_fleet()))

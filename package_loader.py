@@ -31,39 +31,43 @@ class PackageLoader:
         remove_empty_groups(package_groups)
         
     
-    def load_empty_trucks_with_drivers(self, fleet, package_groups, reporter, drivers):
+    def load_priority_zero_packages_with_drivers(self, fleet, package_groups, reporter, drivers):
+        # If we're not working with highest priority packages, we can simply load packages
+        first_group = next((g for g in package_groups if g), None)
+        if not first_group or first_group[0].priority != 0:
+            return
+
+        verbosity = reporter.verbosity
         warehouse_hash = get_warehouse_hash()
         
-        # Highest priority packages need to go onto empty trucks that have drivers (Ready to roll).
-        empty_trucks_with_drivers_list = get_candidate_trucks(fleet, drivers, require_empty=True)
+        # Highest priority packages need to go onto trucks that have drivers (Ready to roll).
+        trucks_with_drivers_list = get_candidate_trucks(fleet, drivers)
+
+        # Find the highest priority set of packages in the package_groups list and move to the priority_packages_list.
+        priority_packages_list = build_working_package_list(package_groups)
         
-        while empty_trucks_with_drivers_list:
-            # Find the highest priority set of packages in the package_groups list and move to the working_package_list.
-            working_package_list = build_working_package_list(package_groups)
+        for priority_package in priority_packages_list:
+            # Testing the routes with each truck with available capacity. We want to find the best outcome for adding the priority package to one of the trucks.
             
-            # Find the first empty truck in the fleet and pop from the list so that the while loop will terminate.
-            empty_truck = empty_trucks_with_drivers_list.pop(0)
+            # Step 1: First build a list of feasible routes
+            feasible_routes_list = build_feasible_routes(trucks_with_drivers_list, [priority_package], verbosity)
             
-            # Check for special note 'W', as these cannot be split
-            w_note = has_w_note(working_package_list)
+            if not feasible_routes_list:
+                reporter.report(VerbosityLevel.INFO, "... package_id, deadline, delay_time, trucks considered ...")
+                raise SystemExit("The package list has a specific combination of packages that are delayed with deadlines that are simply impossible to deliver on time.")
             
-            # If the working_package_list does not have any 'W' notes, then we can check to see if the capacity is sufficient to load the entire list.
-            if len(working_package_list) > empty_truck.maximum_capacity:
-                if w_note:
-                    reporter.report(VerbosityLevel.INFO, f"Working package list with 'W' note cannot fit on truck {empty_truck.truck_id + 1}.")
-                    raise SystemExit(1)
-                else:
-                    working_package_list = split_package_list(empty_truck, package_groups, working_package_list)
-                
-            # Now add each package in the working_package_list to the empty_truck.
-            for pkg in working_package_list:
-                pkg.truck = empty_truck.truck_id
-                empty_truck.package_list.append(pkg)
-                empty_truck.current_capacity -= 1
+            # Step 2: Determine which feasible route minimizes the total distance when replacing a truck's current route.
+            best_option = choose_best_option(feasible_routes_list)
+
+            # Step 3: Load the optimal truck by fixing the package_list, current_capacity, and route_distance attributes
+            optimal_truck = best_option[0]
             
-            print_loading_packages(empty_truck, working_package_list, reporter.verbosity)
-            
-            remove_empty_groups(package_groups)
+            reporter.report(VerbosityLevel.INFO, f"\nTruck {optimal_truck.truck_id + 1} produced the optimal feasible route with a minimum distances of {best_option[2]:.1f}")
+            load_optimal_truck(best_option)
+            print_loading_packages(optimal_truck, [priority_package], reporter.verbosity)
+            # Remove the optimal truck if it is at capacity.
+            if optimal_truck.current_capacity == 0:
+                trucks_with_drivers_list.remove(optimal_truck)
         
     
     # This method is the heart of the package_loader, and is quite huge. It has gone through several refactors, and in this final version I have done my best to clarify what's going on throughout.
@@ -110,7 +114,7 @@ class PackageLoader:
             # Testing the routes with each truck with available capacity. We want to find the best outcome for adding the working package list to one of the trucks.
             
             # Step 1: First build a list of feasible routes
-            feasible_routes_list = build_feasible_routes(available_trucks, working_package_list, verbosity, count)
+            feasible_routes_list = build_feasible_routes(available_trucks, working_package_list, verbosity)
             
             # If there are no feasible routes, exit.
             if not feasible_routes_list:
