@@ -1,0 +1,19 @@
+name: CD
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: self-hosted
+
+    steps:
+      - name: Pull latest code
+        run: git -C /srv/projects.jjg.dev/package-delivery/package-delivery pull
+
+      - name: Restart service
+        run: sudo systemctl restart wgups-api.service
