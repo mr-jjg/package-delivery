@@ -13,7 +13,7 @@ jobs:
 
     steps:
       - name: Pull latest code
-        run: git -C /srv/projects.jjg.dev/package-delivery/package-delivery pull
+        run: git -C /srv/projects/package-delivery pull
 
       - name: Restart service
         run: sudo systemctl restart wgups-api.service
