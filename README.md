@@ -1,6 +1,8 @@
 # package-delivery
 
-A Python simulation of a multi-truck package delivery system with constraint-based routing, live at [projects.jjg.dev](https://projects.jjg.dev).
+A Python simulation of a multi-truck package delivery system with constraint-based routing
+
+**Live demo:** [projects.jjg.dev/demos/wgups.html](https://projects.jjg.dev/demos/wgups.html)
 
 ---
 
